@@ -23,17 +23,23 @@
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 10px; box-sizing: border-box; padding: 10px;
   }
-  #install-app {
+  .app-actions {
     position: fixed; z-index: 2;
     top: max(10px, env(safe-area-inset-top));
     right: max(10px, env(safe-area-inset-right));
+    display: flex; gap: 6px;
+  }
+  .app-action {
     width: 38px; height: 38px; padding: 0;
     border: 1px solid #4b5268; border-radius: 6px;
     background: #202536; color: #f8f5e8;
     font: bold 20px monospace; line-height: 1;
     box-shadow: inset 0 -3px 0 #111522;
   }
-  #install-app:active { transform: translateY(2px); box-shadow: none; }
+  .app-action:active { transform: translateY(2px); box-shadow: none; }
+  .app-action:focus-visible, .touch-button:focus-visible {
+    outline: 2px solid #fcd800; outline-offset: 2px;
+  }
   canvas {
     display: block; width: min(100%, 768px); height: auto;
     max-height: calc(100vh - 116px);
@@ -60,6 +66,8 @@
   @media (max-width: 420px) {
     #wrap { justify-content: flex-start; padding: 7px; gap: 7px; }
     canvas { max-height: calc(100vh - 76px); }
+    .app-actions { top: max(7px, env(safe-area-inset-top)); right: max(7px, env(safe-area-inset-right)); gap: 4px; }
+    .app-action { width: 34px; height: 34px; font-size: 18px; }
     .touch-controls, .touch-group { gap: 6px; }
     .touch-button { width: 42px; height: 38px; }
     .touch-button.utility { width: 38px; }
@@ -68,7 +76,11 @@
 </head>
 <body>
 <div id="wrap">
-  <button id="install-app" type="button" hidden aria-label="安装应用" title="安装应用">⇩</button>
+  <div class="app-actions" aria-label="应用工具">
+    <button id="sound-app" class="app-action" type="button" aria-label="关闭声音" title="关闭声音">♫</button>
+    <button id="fullscreen-app" class="app-action" type="button" aria-label="进入全屏" title="进入全屏">⛶</button>
+    <button id="install-app" class="app-action" type="button" hidden aria-label="安装应用" title="安装应用">⇩</button>
+  </div>
   <canvas id="screen" width="768" height="720"></canvas>
   <nav class="touch-controls" aria-label="触控操作">
     <div class="touch-group">

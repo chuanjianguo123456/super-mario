@@ -101,6 +101,12 @@ ok(['./index.html', './js/game.js', './assets/app-icon-192.png', './assets/app-i
 ok(/beforeinstallprompt/.test(PWA_APP) && /id="install-app"/.test(INDEX_HTML),
    'PWA 缺少原生安装入口');
 ok(/mario_sound/.test(GAME_SOURCE), '声音偏好未接入本地存储');
+ok(/id="sound-app"/.test(INDEX_HTML) && /id="fullscreen-app"/.test(INDEX_HTML),
+   '应用工具栏缺少声音或全屏控制');
+ok(/visibilitychange/.test(PWA_APP) && /Game\.setPaused\(true\)/.test(PWA_APP),
+   '切换后台时未自动暂停游戏');
+ok(/requestFullscreen/.test(PWA_APP) && /fullscreenchange/.test(PWA_APP),
+   '应用缺少全屏切换支持');
 
 /* ---- 2. 关卡几何 ---- */
 section('关卡几何');
@@ -184,6 +190,25 @@ Game.ents.length = 0;
 frames(40, []);
 ok(p.onGround, '静止 40 帧后仍未落地 (y=' + p.y.toFixed(1) + ')');
 ok(p.y + p.h === 208, '落地脚底应贴 y=208，实为 ' + (p.y + p.h));
+
+// 离开平台后的短暂容错：最后一步后仍可起跳，提升手感但不改变跳高。
+fresh();
+p.onGround = false;
+p.coyoteTimer = 3;
+p.vy = 0.5;
+release('KeyZ'); Game.step(); press('KeyZ'); Game.step(); release('KeyZ');
+ok(p.vy < 0 && p.coyoteTimer === 0, '离台跳跃容错未生效');
+
+// 提前按跳会在落地时立即起跳，避免输入被单帧时机吞掉。
+fresh();
+p.y = 208 - p.h - 1;
+p.vy = 1;
+p.onGround = false; p.coyoteTimer = 0;
+press('KeyZ'); Game.step(); release('KeyZ');
+ok(p.vy < 0 && !p.onGround, '落地跳跃缓冲未生效');
+
+ok(Game.setPaused(true) && Game.paused, '应用暂停接口未进入暂停状态');
+ok(Game.setPaused(false) && !Game.paused, '应用暂停接口未恢复游戏');
 
 // 走路
 const x0 = p.x;

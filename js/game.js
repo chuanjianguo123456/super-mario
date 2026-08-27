@@ -12,6 +12,8 @@ var Game = (function () {
     gravity: 0.5, gravityHold: 0.18, maxFall: 7.5,
     stompBounce: -3.6, stompBounceHold: -4.6
   };
+  var COYOTE_FRAMES = 5;
+  var JUMP_BUFFER_FRAMES = 6;
 
   var COMBO = [100, 200, 400, 500, 800, 1000, 2000, 4000, 5000, 8000];
 
@@ -39,7 +41,8 @@ var Game = (function () {
     jumping: false, walkAnim: 0, skid: false,
     invuln: 0, growTimer: 0, shrinking: false,
     dead: false, deadTimer: 0, deadBounced: false,
-    stompCombo: 0, onPole: false, autoWalk: false
+    stompCombo: 0, onPole: false, autoWalk: false,
+    coyoteTimer: 0, jumpBufferTimer: 0
   };
 
   /* ---------- 存档 ---------- */
@@ -67,6 +70,22 @@ var Game = (function () {
   }
   function saveSound() {
     try { localStorage.setItem('mario_sound', Sound.isEnabled() ? '1' : '0'); } catch (e) {}
+  }
+
+  function toggleSound() {
+    var enabled = Sound.toggle();
+    saveSound();
+    return enabled;
+  }
+
+  function setPaused(value) {
+    if (state !== 'playing') return false;
+    value = !!value;
+    if (paused === value) return true;
+    paused = value;
+    Sound.sfx.pause();
+    if (paused) Sound.stopMusic(); else Sound.startMusic(level.theme);
+    return true;
   }
 
   /* ---------- 关卡装载 ---------- */
@@ -103,6 +122,7 @@ var Game = (function () {
     player.invuln = 0; player.growTimer = 0; player.shrinking = false;
     player.dead = false; player.deadTimer = 0; player.deadBounced = false;
     player.stompCombo = 0; player.onPole = false; player.autoWalk = false;
+    player.coyoteTimer = 0; player.jumpBufferTimer = 0;
   }
 
   function spawn(e) { ents.push(e); }
@@ -298,10 +318,24 @@ var Game = (function () {
     Sound.startMusic(level.theme);
   }
 
+  function beginJump() {
+    player.vy = Math.abs(player.vx) > 1.9 ? P.jumpVelRun : P.jumpVel;
+    player.jumping = true;
+    player.onGround = false;
+    player.coyoteTimer = 0;
+    player.jumpBufferTimer = 0;
+    if (player.power > 0) Sound.sfx.jumpBig(); else Sound.sfx.jump();
+  }
+
   function updatePlayer() {
     if (player.growTimer > 0) { player.growTimer--; if (player.growTimer === 0) player.shrinking = false; return; }
     if (player.invuln > 0) player.invuln--;
     if (tryEnterPipe()) return;
+
+    if (player.onGround) player.coyoteTimer = COYOTE_FRAMES;
+    else if (player.coyoteTimer > 0) player.coyoteTimer--;
+    if (player.jumpBufferTimer > 0) player.jumpBufferTimer--;
+    if (Input.justPressed('jump')) player.jumpBufferTimer = JUMP_BUFFER_FRAMES;
 
     var left = Input.isDown('left'), right = Input.isDown('right');
     var run = Input.isDown('run');
@@ -328,11 +362,8 @@ var Game = (function () {
     player.skid = player.onGround && ((player.vx > 0.4 && left) || (player.vx < -0.4 && right));
 
     // 跳跃
-    if (Input.justPressed('jump') && player.onGround) {
-      player.vy = Math.abs(player.vx) > 1.9 ? P.jumpVelRun : P.jumpVel;
-      player.jumping = true;
-      player.onGround = false;
-      if (player.power > 0) Sound.sfx.jumpBig(); else Sound.sfx.jump();
+    if (player.jumpBufferTimer > 0 && (player.onGround || player.coyoteTimer > 0)) {
+      beginJump();
     }
     if (!Input.isDown('jump')) player.jumping = false;
 
@@ -342,7 +373,12 @@ var Game = (function () {
     player.vy = Math.min(player.vy + g, P.maxFall);
     var r = World.moveY(level, player);
     player.onGround = r.ground;
-    if (r.ground) { player.jumping = false; player.stompCombo = 0; }
+    if (r.ground) {
+      player.jumping = false;
+      player.stompCombo = 0;
+      player.coyoteTimer = COYOTE_FRAMES;
+      if (player.jumpBufferTimer > 0) beginJump();
+    }
     if (r.head && r.headTile) bumpBlock(r.headTile.tx, r.headTile.ty, r.headTile.ch);
 
     // 动画
@@ -962,7 +998,7 @@ var Game = (function () {
     Input.poll();
     frame++;
 
-    if (Input.justPressed('mute')) { Sound.toggle(); saveSound(); }
+    if (Input.justPressed('mute')) toggleSound();
 
     if (state === 'title') {
       if (Input.justPressed('continue') && worldsCleared > 0) {
@@ -1001,9 +1037,7 @@ var Game = (function () {
 
     // playing
     if (Input.justPressed('pause')) {
-      paused = !paused;
-      Sound.sfx.pause();
-      if (paused) Sound.stopMusic(); else Sound.startMusic(level.theme);
+      setPaused(!paused);
     }
     if (Input.justPressed('reset')) {
       Sound.setSpeed(1);
@@ -1077,6 +1111,8 @@ var Game = (function () {
     get worldsCleared() { return worldsCleared; },
     get clear() { return clear; },
     get pipeTransition() { return pipeTransition; },
+    setPaused: setPaused,
+    toggleSound: toggleSound,
     get paused() { return paused; },
     get cam() { return cam; },
     get frame() { return frame; }
