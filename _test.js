@@ -5,6 +5,9 @@ const DIR = __dirname;
 const FILES = ['font.js', 'sprites.js', 'tiles.js', 'input.js', 'audio.js',
                'levels.js', 'world.js', 'entities.js', 'game.js'];
 const INDEX_HTML = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8');
+const PWA_MANIFEST = JSON.parse(fs.readFileSync(path.join(DIR, 'manifest.webmanifest'), 'utf8'));
+const PWA_APP = fs.readFileSync(path.join(DIR, 'app.js'), 'utf8');
+const PWA_WORKER = fs.readFileSync(path.join(DIR, 'sw.js'), 'utf8');
 
 /* ---- DOM 桩 ---- */
 function ctxStub() {
@@ -84,6 +87,16 @@ section('资源自检');
 ok(Sprites.validate().length === 0, '精灵位图有错');
 ok(Font.width('ABC', 1) === 17, '字体宽度计算异常: ' + Font.width('ABC', 1));
 ok(/data-key="KeyS"[^>]*aria-label="下水管"/.test(INDEX_HTML), '触控端缺少下水管按钮');
+ok(/manifest\.webmanifest/.test(INDEX_HTML), '页面未链接 PWA 清单');
+ok(PWA_MANIFEST.display === 'standalone' && PWA_MANIFEST.orientation === 'landscape',
+   'PWA 未声明独立横屏应用模式');
+ok(['assets/app-icon-192.png', 'assets/app-icon-512.png', 'assets/app-icon.svg'].every(icon =>
+  PWA_MANIFEST.icons.some(i => i.src === icon)), 'PWA 缺少应用图标');
+ok(['assets/app-icon-192.png', 'assets/app-icon-512.png', 'assets/app-icon.svg'].every(icon =>
+  fs.existsSync(path.join(DIR, icon))), 'PWA 图标文件缺失');
+ok(/serviceWorker\.register\('sw\.js'\)/.test(PWA_APP), '页面未注册离线服务工作线程');
+ok(['./index.html', './js/game.js', './assets/app-icon-192.png', './assets/app-icon-512.png'].every(p => PWA_WORKER.includes(p)),
+   '离线缓存清单不完整');
 
 /* ---- 2. 关卡几何 ---- */
 section('关卡几何');
