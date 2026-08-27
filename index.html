@@ -41,8 +41,9 @@
   @media (max-width: 420px) {
     #wrap { justify-content: flex-start; padding: 7px; gap: 7px; }
     canvas { max-height: calc(100vh - 76px); }
-    .touch-button { width: 48px; height: 38px; }
-    .touch-button.utility { width: 42px; }
+    .touch-controls, .touch-group { gap: 6px; }
+    .touch-button { width: 42px; height: 38px; }
+    .touch-button.utility { width: 38px; }
   }
 </style>
 </head>
@@ -52,6 +53,7 @@
   <nav class="touch-controls" aria-label="触控操作">
     <div class="touch-group">
       <button class="touch-button" data-key="KeyA" aria-label="向左">◀</button>
+      <button class="touch-button utility" data-key="KeyS" aria-label="下水管">▼</button>
       <button class="touch-button" data-key="KeyD" aria-label="向右">▶</button>
     </div>
     <div class="touch-group">

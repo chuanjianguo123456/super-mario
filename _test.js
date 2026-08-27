@@ -4,6 +4,7 @@ const fs = require('fs'), path = require('path'), vm = require('vm');
 const DIR = __dirname;
 const FILES = ['font.js', 'sprites.js', 'tiles.js', 'input.js', 'audio.js',
                'levels.js', 'world.js', 'entities.js', 'game.js'];
+const INDEX_HTML = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8');
 
 /* ---- DOM 桩 ---- */
 function ctxStub() {
@@ -82,6 +83,7 @@ function section(t) { console.log('\n== ' + t + ' =='); }
 section('资源自检');
 ok(Sprites.validate().length === 0, '精灵位图有错');
 ok(Font.width('ABC', 1) === 17, '字体宽度计算异常: ' + Font.width('ABC', 1));
+ok(/data-key="KeyS"[^>]*aria-label="下水管"/.test(INDEX_HTML), '触控端缺少下水管按钮');
 
 /* ---- 2. 关卡几何 ---- */
 section('关卡几何');
@@ -515,6 +517,9 @@ const plant = Game.ents.find(e => e.type === 'piranha');
 const boss = Game.ents.find(e => e.type === 'bowser');
 ok(!!plant, '1-4 未生成食人花');
 ok(!!boss, '1-4 未生成库巴');
+let bossRenderErr = null;
+try { Game.render(); } catch (e) { bossRenderErr = e; }
+ok(!bossRenderErr, 'Boss 血条渲染抛异常: ' + (bossRenderErr && bossRenderErr.message));
 if (plant) {
   frames(50, []);
   ok(plant.phase === 'visible' && !plant.harmless, '食人花未按周期冒出');

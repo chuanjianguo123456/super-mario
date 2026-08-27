@@ -775,6 +775,32 @@ var Game = (function () {
     Font.drawShadow(ctx, pad(Math.max(0, timeLeft), 3), 212, 17, timeLeft <= 100 && blink ? '#f87858' : c, 1);
   }
 
+  function activeBoss() {
+    for (var i = 0; i < ents.length; i++) {
+      if (ents[i].type === 'bowser' && !ents[i].dead) return ents[i];
+    }
+    return null;
+  }
+
+  function drawBossHUD() {
+    var boss = activeBoss();
+    if (!boss) return;
+
+    var x = 82, y = 35, w = 84, h = 7;
+    Font.drawShadow(ctx, 'BOWSER', 82, 26, '#fcfcfc', 1);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+    ctx.fillStyle = '#5a5a5a';
+    ctx.fillRect(x, y, w, h);
+
+    var hp = Math.max(0, Math.min(5, boss.hp));
+    var fill = Math.round(w * hp / 5);
+    ctx.fillStyle = hp <= 1 ? '#d82800' : '#f87800';
+    ctx.fillRect(x, y, fill, h);
+    ctx.fillStyle = '#fcd800';
+    for (var notch = 1; notch < 5; notch++) ctx.fillRect(x + Math.round(w * notch / 5) - 1, y, 2, h);
+  }
+
   /* ---------- 渲染：覆盖层 ---------- */
   function dim(alpha) {
     ctx.fillStyle = 'rgba(0,0,0,' + alpha + ')';
@@ -861,6 +887,7 @@ var Game = (function () {
 
     drawPlayer();
     drawHUD();
+    drawBossHUD();
 
     if (clear && clear.phase === 'done')
       Font.drawCentered(ctx, 'COURSE CLEAR!', 128, 104, '#fcfcfc', 2);
