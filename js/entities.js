@@ -375,9 +375,206 @@ var Entities = (function () {
     ctx.restore();
   };
 
+  /* ---------- 食人花 ---------- */
+  function Piranha(x, pipeTopY) {
+    // x 是水管左侧像素坐标，pipeTopY 是水管口顶部的像素 y。
+    Entity.call(this, x + 2, pipeTopY, 12, 24);
+    this.sx = -2; this.sy = 0;
+    this.type = 'piranha';
+    this.sprite = 'piranha';
+    this.pipeY = pipeTopY;
+    this.hiddenY = pipeTopY;
+    this.visibleY = pipeTopY - 24;
+    this.emergeTimer = 0;
+    this.phase = 'hidden'; // hidden | extending | visible | retracting
+    this.harmless = true;
+    this.anim = 0;
+  }
+  Piranha.prototype = Object.create(Entity.prototype);
+
+  Piranha.prototype.update = function (g) {
+    var px = g.player.x + g.player.w / 2;
+    var cx = this.x + this.w / 2;
+    var tooClose = Math.abs(px - cx) < 24;
+
+    // 玩家贴近管口时保持缩回，避免从身体中突然冒出。
+    if (tooClose && (this.phase === 'hidden' || this.phase === 'extending')) {
+      this.emergeTimer = 0;
+      this.phase = 'hidden';
+      this.y = this.hiddenY;
+      this.harmless = true;
+      return;
+    }
+
+    this.emergeTimer++;
+    if (this.emergeTimer >= 120) this.emergeTimer = 0;
+
+    if (this.emergeTimer < 24) {
+      this.phase = 'hidden';
+      this.y = this.hiddenY;
+      this.harmless = true;
+    } else if (this.emergeTimer < 42) {
+      this.phase = 'extending';
+      this.y = this.hiddenY - ((this.emergeTimer - 24) / 18) * 24;
+      this.harmless = true;
+    } else if (this.emergeTimer < 78) {
+      this.phase = 'visible';
+      this.y = this.visibleY;
+      this.harmless = false;
+    } else if (this.emergeTimer < 96) {
+      this.phase = 'retracting';
+      this.y = this.visibleY + ((this.emergeTimer - 78) / 18) * 24;
+      this.harmless = true;
+    } else {
+      this.phase = 'hidden';
+      this.y = this.hiddenY;
+      this.harmless = true;
+    }
+
+    this.anim++;
+  };
+
+  Piranha.prototype.stomped = function () {
+    // 食人花不能被踩死。
+  };
+
+  Piranha.prototype.flipOut = function () {
+    // 食人花不能被顶块或龟壳击杀。
+  };
+
+  Piranha.prototype.draw = function (ctx, cam) {
+    if (this.phase === 'hidden') return;
+    Sprites.draw(ctx, 'piranha', this.x - cam + this.sx, this.y + this.sy, false, null);
+  };
+
+  /* ---------- 库巴（Boss） ---------- */
+  function Bowser(x, y) {
+    Entity.call(this, x, y - 32, 28, 32);
+    this.sx = -2; this.sy = 0;
+    this.type = 'bowser';
+    this.sprite = 'bowser';
+    this.vx = -0.8;
+    this.hp = 5;               // 5 发火球或触碰斧头即死
+    this.jumpTimer = 0;
+    this.fireTimer = 0;
+    this.hurtTimer = 0;
+    this.harmless = false;
+    this.flip = false;
+    this.anim = 0;
+  }
+  Bowser.prototype = Object.create(Entity.prototype);
+
+  Bowser.prototype.update = function (g) {
+    if (this.flippedOut) {
+      this.vy += GRAVITY; this.y += this.vy;
+      this.offscreenKill(g.level);
+      return;
+    }
+
+    this.jumpTimer++;
+    this.fireTimer++;
+    if (this.hurtTimer > 0) this.hurtTimer--;
+
+    // 水平移动
+    var beforeMove = this.vx;
+    if (World.moveX(g.level, this)) this.vx = -beforeMove;
+
+    // 周期性跳跃
+    if (this.jumpTimer > 90 && this.vy === 0) {
+      this.vy = -5.5;
+      this.jumpTimer = 0;
+    }
+
+    this.vy = Math.min(this.vy + GRAVITY, 8);
+    var r = World.moveY(g.level, this);
+    if (r.ground && this.vy > 0) this.vy = 0;
+
+    // 周期性喷火
+    if (this.fireTimer > 120) {
+      this.fireTimer = 0;
+      var fx = this.vx < 0 ? this.x - 8 : this.x + this.w;
+      g.spawn(new BowserFire(fx, this.y + 16, this.vx < 0 ? -1 : 1));
+    }
+
+    this.anim += 0.3;
+    this.flip = this.vx > 0;
+    this.offscreenKill(g.level);
+  };
+
+  Bowser.prototype.hit = function (g) {
+    if (this.dead || this.hurtTimer > 0) return false;
+    this.hurtTimer = 18;
+    this.hp--;
+    g.spawn(new Puff(this.x + this.w / 2 - 8, this.y + this.h / 2 - 8));
+    if (this.hp <= 0) {
+      this.flipOut();
+      g.addScore(5000, this.x, this.y);
+    }
+    Sound.sfx.kick();
+    return true;
+  };
+
+  Bowser.prototype.stomped = function () {
+    // 库巴不能被踩死
+  };
+
+  Bowser.prototype.flipOut = function () {
+    if (this.dead) return;
+    this.dead = true; this.harmless = true;
+    this.vy = -6;
+    this.vx = 0;
+    this.flippedOut = true;
+    this.type = 'dying';
+  };
+
+  Bowser.prototype.draw = function (ctx, cam) {
+    if (this.flippedOut) {
+      ctx.save();
+      ctx.translate(Math.round(this.x - cam + this.sx), Math.round(this.y + 32));
+      ctx.scale(1, -1);
+      Sprites.draw(ctx, 'bowser', 0, 0, false, null);
+      ctx.restore();
+      return;
+    }
+    Sprites.draw(ctx, 'bowser', this.x - cam + this.sx, this.y + this.sy, this.flip, null);
+  };
+
+  /* ---------- 库巴火焰 ---------- */
+  function BowserFire(x, y, dir) {
+    Entity.call(this, x, y, 16, 16);
+    this.type = 'bowserfire';
+    this.sprite = null;
+    this.vx = 1.6 * dir;
+    this.vy = 0;
+    this.life = 180;
+    this.baseY = y;
+    this.anim = 0;
+  }
+  BowserFire.prototype = Object.create(Entity.prototype);
+
+  BowserFire.prototype.update = function (g) {
+    this.life--;
+    if (this.life <= 0) { this.remove = true; return; }
+    this.x += this.vx;
+    this.y = this.baseY + Math.sin(this.anim * 0.3) * 1.5;
+    this.anim++;
+    if (this.x < -32 || this.x > g.level.pixelWidth + 32) this.remove = true;
+    if (this.y > g.level.pixelHeight + 32) this.remove = true;
+  };
+
+  BowserFire.prototype.draw = function (ctx, cam) {
+    var a = Math.floor(this.anim / 4) % 4;
+    var r = 4 + a * 2;
+    ctx.fillStyle = a % 2 === 0 ? '#fcd800' : '#f87800';
+    var cx = Math.round(this.x - cam + 8), cy = Math.round(this.y + 8);
+    ctx.fillRect(cx - r, cy - 2, r * 2, 4);
+    ctx.fillRect(cx - 2, cy - r, 4, r * 2);
+  };
+
   return {
     Entity: Entity, Goomba: Goomba, Koopa: Koopa, Shell: Shell,
     Mushroom: Mushroom, Flower: Flower, Fireball: Fireball,
+    Piranha: Piranha, Bowser: Bowser, BowserFire: BowserFire,
     Puff: Puff, CoinPop: CoinPop, ScorePop: ScorePop, Debris: Debris,
     GRAVITY: GRAVITY
   };

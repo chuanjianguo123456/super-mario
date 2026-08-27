@@ -35,6 +35,17 @@ var Tiles = (function () {
       pipe: '#00a800', pipeLo: '#005800', pipeHi: '#58d854',
       hill: '#38a8fc', hillLo: '#1878c8',
       cloud: '#fcfcfc', cloudLo: '#d8ecfc'
+    },
+    castle: {
+      sky: '#000000',
+      ground: '#787878', groundLo: '#383838', groundHi: '#b8b8b8',
+      brick: '#787878', brickLo: '#383838', brickHi: '#b8b8b8', mortar: '#181818',
+      block: '#e39b18', blockLo: '#96590c', blockHi: '#fcd8a8',
+      used: '#585858', usedLo: '#282828', usedHi: '#888888',
+      stone: '#686868', stoneLo: '#383838', stoneHi: '#a8a8a8',
+      pipe: '#00a800', pipeLo: '#005800', pipeHi: '#58d854',
+      hill: '#484848', hillLo: '#282828',
+      cloud: '#585858', cloudLo: '#383838'
     }
   };
 

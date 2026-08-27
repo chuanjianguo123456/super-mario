@@ -31,6 +31,7 @@ var Game = (function () {
   var score = 0, coins = 0, lives = 3, highScore = 0, worldsCleared = 0;
   var timeLeft = 400, timeAcc = 0;
   var clear = null;
+  var pipeTransition = null;
 
   var player = {
     x: 0, y: 0, w: 12, h: 15, vx: 0, vy: 0,
@@ -73,12 +74,18 @@ var Game = (function () {
     cam = 0; camMax = 0;
     timeLeft = level.time; timeAcc = 0;
     clear = null;
+    pipeTransition = null;
 
     for (var i = 0; i < level.enemies.length; i++) {
       var e = level.enemies[i];
       if (e.kind === 'g') ents.push(new Entities.Goomba(e.x, e.y));
       else if (e.kind === 'k') ents.push(new Entities.Koopa(e.x, e.y));
     }
+    for (var p = 0; p < level.piranhas.length; p++) {
+      var plant = level.piranhas[p];
+      ents.push(new Entities.Piranha(plant.x, plant.pipeY));
+    }
+    if (level.boss) ents.push(new Entities.Bowser(level.boss.x, level.boss.y));
 
     var pw = player.power;
     player.x = level.spawn.x;
@@ -240,9 +247,57 @@ var Game = (function () {
     Sound.sfx.fire();
   }
 
+  function pipeLinkAt(pipe) {
+    var leftX = pipe.ch === 'R' ? pipe.tx - 1 : pipe.tx;
+    for (var i = 0; i < level.pipeLinks.length; i++) {
+      if (level.pipeLinks[i].x === leftX) return level.pipeLinks[i];
+    }
+    return null;
+  }
+
+  function tryEnterPipe() {
+    if (!Input.isDown('down') || !player.onGround || pipeTransition) return false;
+    var pipe = World.pipeAtFeet(level, player);
+    if (!pipe) return false;
+    var link = pipeLinkAt(pipe);
+    if (!link) return false;
+
+    var leftX = pipe.ch === 'R' ? pipe.tx - 1 : pipe.tx;
+    player.x = leftX * T + (T * 2 - player.w) / 2;
+    player.vx = 0; player.vy = 0;
+    player.jumping = false; player.skid = false;
+    pipeTransition = { t: 0, distance: player.h, to: link.to };
+    Sound.sfx.bump();
+    return true;
+  }
+
+  function updatePipeTransition() {
+    pipeTransition.t++;
+    if (pipeTransition.t <= pipeTransition.distance) {
+      player.y += 1;
+      return;
+    }
+
+    var to = pipeTransition.to;
+    var power = player.power;
+    loadLevel(to.level, true);
+    player.power = power;
+    player.h = power > 0 ? 30 : 15;
+    player.x = to.x * T + 2;
+    player.y = to.y * T - player.h;
+    player.vx = 0; player.vy = 0;
+    player.invuln = 45;
+    camMax = Math.max(0, player.x - 96);
+    updateCamera();
+    pipeTransition = null;
+    Sound.stopMusic();
+    Sound.startMusic(level.theme);
+  }
+
   function updatePlayer() {
     if (player.growTimer > 0) { player.growTimer--; if (player.growTimer === 0) player.shrinking = false; return; }
     if (player.invuln > 0) player.invuln--;
+    if (tryEnterPipe()) return;
 
     var left = Input.isDown('left'), right = Input.isDown('right');
     var run = Input.isDown('run');
@@ -302,11 +357,15 @@ var Game = (function () {
 
     // 到旗杆
     if (level.flagX != null && !clear && player.x + player.w >= level.flagX + 6) startClear();
+    if (level.axeX != null && !clear && World.overlaps(player, {
+      x: level.axeX, y: level.flagBaseY - 20, w: 16, h: 20
+    })) startBossClear();
   }
 
   /* ---------- 实体交互 ---------- */
   function isEnemy(e) {
-    return e.type === 'goomba' || e.type === 'koopa' || e.type === 'shell';
+    return e.type === 'goomba' || e.type === 'koopa' || e.type === 'shell' ||
+      e.type === 'piranha' || e.type === 'bowser';
   }
 
   function killByHit(e, pts, x, y) {
@@ -331,7 +390,11 @@ var Game = (function () {
           var tb = ents[b];
           if (tb.remove || tb.dead || !isEnemy(tb)) continue;
           if (World.overlaps(ea, tb)) {
-            killByHit(tb, 200, tb.x, tb.y);
+            if (tb.type === 'bowser') tb.hit(G);
+            else if (tb.type === 'piranha') {
+              tb.remove = true;
+              addScore(200, tb.x, tb.y);
+            } else killByHit(tb, 200, tb.x, tb.y);
             Sound.sfx.kick();
             ea.burst(G);
             break;
@@ -346,7 +409,13 @@ var Game = (function () {
           if (tc === ea || tc.remove || tc.dead || !isEnemy(tc)) continue;
           if (World.overlaps(ea, tc)) {
             ea.kickCombo = Math.min(ea.kickCombo + 1, COMBO.length - 1);
-            killByHit(tc, COMBO[ea.kickCombo], tc.x, tc.y);
+            if (tc.type === 'bowser') {
+              if (tc.hit(G)) ea.vx = -ea.vx;
+            }
+            else if (tc.type === 'piranha') {
+              tc.remove = true;
+              addScore(COMBO[ea.kickCombo], tc.x, tc.y);
+            } else killByHit(tc, COMBO[ea.kickCombo], tc.x, tc.y);
             Sound.sfx.kick();
           }
         }
@@ -360,6 +429,12 @@ var Game = (function () {
         var e2 = ents[k];
         if (e2.remove || e2.type === 'fx' || e2.type === 'fireball') continue;
         if (!World.overlaps(pb, e2)) continue;
+
+        if (e2.type === 'bowserfire') {
+          e2.remove = true;
+          hurt();
+          continue;
+        }
 
         if (e2.type === 'mushroom') {
           e2.remove = true;
@@ -380,6 +455,11 @@ var Game = (function () {
             e2.kick(dir, G);
             addScore(400, e2.x, e2.y);
           }
+          continue;
+        }
+
+        if (e2.type === 'piranha' || e2.type === 'bowser') {
+          hurt();
           continue;
         }
 
@@ -425,8 +505,43 @@ var Game = (function () {
     addScore(2000, player.x, player.y - 12);
   }
 
+  function startBossClear() {
+    if (clear) return;
+    clear = { phase: 'boss', t: 0, flagY: 0, bonusDone: false };
+    player.vx = 0; player.vy = 0;
+    player.autoWalk = true;
+    for (var i = 0; i < ents.length; i++) {
+      if (ents[i].type === 'bowser' && !ents[i].dead) ents[i].flipOut();
+      if (ents[i].type === 'bowserfire') ents[i].remove = true;
+    }
+    addScore(5000, player.x, player.y - 12);
+    Sound.sfx.clear();
+  }
+
   function updateClear() {
     clear.t++;
+
+    if (clear.phase === 'boss') {
+      if (clear.t < 48) {
+        player.vx = 1.1;
+        World.moveX(level, player);
+        player.walkAnim += 0.7;
+      } else player.vx = 0;
+
+      if (timeLeft > 0) {
+        var bossDec = Math.min(timeLeft, 5);
+        timeLeft -= bossDec;
+        score += bossDec * 50;
+        if (clear.t % 6 === 0) Sound.sfx.coin();
+      }
+      if (timeLeft <= 0 && clear.t > 90) {
+        player.autoWalk = false;
+        clear.phase = 'done';
+        clear.t = 0;
+      }
+      return;
+    }
+
     var poleBottom = level.flagBaseY - player.h;
 
     if (clear.phase === 'slide') {
@@ -536,6 +651,17 @@ var Game = (function () {
       if (fxp < VW + 32 && fxp > -32) {
         var fy = clear ? clear.flagY : level.flagTopY + 8;
         Tiles.flagpole(ctx, fxp, level.flagBaseY, level.flagTopY, fy);
+      }
+    }
+    if (level.axeX != null) {
+      var ax = Math.round(level.axeX - cam);
+      if (ax > -16 && ax < VW + 16) {
+        var ay = level.flagBaseY - 20;
+        ctx.fillStyle = '#fcfcfc';
+        ctx.fillRect(ax + 7, ay, 2, 20);
+        ctx.fillStyle = '#fcd800';
+        ctx.fillRect(ax + 2, ay, 12, 4);
+        ctx.fillRect(ax + 4, ay + 4, 8, 3);
       }
     }
   }
@@ -701,7 +827,7 @@ var Game = (function () {
   function drawWin() {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VW, VH);
     Font.drawCentered(ctx, 'THANK YOU MARIO!', 128, 72, '#fcfcfc', 2, false);
-    Font.drawCentered(ctx, 'ALL 3 WORLDS CLEAR', 128, 104, '#fcd800', 1, false);
+    Font.drawCentered(ctx, 'ALL ' + Levels.count + ' WORLDS CLEAR', 128, 104, '#fcd800', 1, false);
     Font.drawCentered(ctx, 'SCORE ' + pad(score, 6), 128, 120, '#fcfcfc', 1, false);
     Font.drawCentered(ctx, 'TOP-' + pad(highScore, 6), 128, 134, '#fcfcfc', 1, false);
     Sprites.draw(ctx, 'mario_big_idle', 120, 152, false, player.power === 2 ? 'fire' : null);
@@ -857,6 +983,14 @@ var Game = (function () {
     }
     if (paused) return;
 
+    if (pipeTransition) {
+      updatePipeTransition();
+      updateEntities();
+      updateBumps();
+      updateCamera();
+      return;
+    }
+
     if (clear) updateClear();
     else { updatePlayer(); updateTimer(); }
 
@@ -911,6 +1045,7 @@ var Game = (function () {
     get timeLeft() { return timeLeft; },
     get worldsCleared() { return worldsCleared; },
     get clear() { return clear; },
+    get pipeTransition() { return pipeTransition; },
     get paused() { return paused; },
     get cam() { return cam; },
     get frame() { return frame; }

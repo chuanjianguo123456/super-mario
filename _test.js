@@ -489,7 +489,86 @@ for (let li = 0; li < Levels.count; li++) {
   if (r.ok) console.log(`  ${L.name}: bot 用 ${r.frames} 帧摸到旗杆`);
 }
 
-/* ---- 11. 三关全通 ---- */
+/* ---- 11. 水管、食人花与 Boss ---- */
+section('水管与Boss');
+
+// 1-1 的高管按下后应进入 1-2，并保留当前能力状态。
+Game.startGame(0);
+while (Game.state !== 'playing') Game.step();
+makeBig(2);
+Game.ents.length = 0;
+const pipeTopY = 9 * 16;
+p.x = 57 * 16 + 10;
+p.y = pipeTopY - p.h;
+p.vx = 0; p.vy = 0; p.onGround = true;
+setKeys(['ArrowDown']);
+Game.step();
+ok(!!Game.pipeTransition, '站在可传送水管上按下未开始下潜');
+frames(32, ['ArrowDown']);
+ok(Game.level.name === '1-2', '水管未传送到地下关: ' + Game.level.name);
+ok(p.power === 2 && p.h === 30, '水管传送未保留玩家能力状态');
+
+// 城堡关应生成食人花和库巴；玩家远离管口时食人花会冒出。
+Game.startGame(3);
+while (Game.state !== 'playing') Game.step();
+const plant = Game.ents.find(e => e.type === 'piranha');
+const boss = Game.ents.find(e => e.type === 'bowser');
+ok(!!plant, '1-4 未生成食人花');
+ok(!!boss, '1-4 未生成库巴');
+if (plant) {
+  frames(50, []);
+  ok(plant.phase === 'visible' && !plant.harmless, '食人花未按周期冒出');
+  makeBig(1);
+  p.x = plant.x;
+  p.y = plant.y;
+  p.vx = 0; p.vy = 0; p.invuln = 0;
+  Game.step();
+  ok(p.power === 0 && Game.state === 'playing', '可见食人花未伤害玩家');
+}
+
+// 库巴撞墙要折返，火球应消耗库巴生命。
+if (boss) {
+  p.x = 48; p.y = 13 * 16 - p.h; p.vx = 0; p.vy = 0;
+  boss.x = 152 * 16 - boss.w - 0.1;
+  boss.y = 13 * 16 - boss.h;
+  boss.vx = 0.8; boss.vy = 0;
+  Game.step();
+  ok(boss.vx < 0, '库巴撞墙后未折返');
+
+  const hp0 = boss.hp;
+  Game.ents.push(new Entities.Fireball(boss.x, boss.y + 8, 1));
+  Game.step();
+  ok(boss.hp === hp0 - 1, '玩家火球未伤害库巴');
+
+  // 龟壳重叠多帧只能造成一次伤害，不能一只壳瞬间清空全部 HP。
+  frames(20, []);
+  const hp1 = boss.hp;
+  const bossShell = new Entities.Shell(boss.x - 2, boss.y + 16);
+  bossShell.moving = true; bossShell.vx = 3.2;
+  Game.ents.push(bossShell);
+  Game.step();
+  const hpAfterShell = boss.hp;
+  frames(8, []);
+  ok(hpAfterShell === hp1 - 1 && boss.hp === hpAfterShell,
+     '龟壳对库巴发生连续多帧伤害');
+}
+
+// 只越过斧头的 X 坐标不能通关，玩家必须在斧头高度发生接触。
+p.x = Game.level.axeX;
+p.y = 100;
+p.vx = 0; p.vy = 0; p.onGround = false;
+setKeys([]);
+Game.step();
+ok(!Game.clear, '玩家从斧头上方越过也触发了通关');
+p.x = Game.level.axeX - p.w + 1;
+p.y = 13 * 16 - p.h;
+p.vx = 0; p.vy = 0; p.onGround = true;
+setKeys(['ArrowRight']);
+Game.step();
+ok(!!Game.clear && Game.clear.phase === 'boss', '触碰斧头未开始 Boss 关结算');
+if (boss) ok(boss.dead, '触碰斧头后库巴仍存活');
+
+/* ---- 12. 四关全通 ---- */
 section('全通');
 Game.startGame();
 while (Game.state !== 'playing') Game.step();
@@ -499,17 +578,17 @@ while (Game.state !== 'win' && guard++ < 8000) {
   // 每关只传送一次到旗杆附近，之后让它自己跑完过关流程
   if (Game.state === 'playing' && !Game.clear && !ported[Game.level.name]) {
     ported[Game.level.name] = true;
-    p.x = Game.level.flagX - 40;
+    p.x = (Game.level.flagX != null ? Game.level.flagX : Game.level.axeX) - 40;
     p.y = 11 * 16;
     p.vx = 0; p.vy = 0;
   }
   setKeys(['ArrowRight']);
   Game.step();
 }
-ok(Game.state === 'win', '通完 3 关未进入 win，实为 ' + Game.state + '（guard=' + guard + '）');
-ok(Object.keys(seen).length === 3, '未经过全部 3 关: ' + Object.keys(seen).join(','));
+ok(Game.state === 'win', '通完全部关卡未进入 win，实为 ' + Game.state + '（guard=' + guard + '）');
+ok(Object.keys(seen).length === Levels.count, '未经过全部关卡: ' + Object.keys(seen).join(','));
 
-/* ---- 12. 存档与触屏重开 ---- */
+/* ---- 13. 存档与触屏重开 ---- */
 section('存档与重开');
 ok(Game.worldsCleared === Levels.count, '全通后未记录全部世界: ' + Game.worldsCleared);
 ok(sandbox.localStorage.getItem('mario_cleared') === String(Levels.count),
@@ -519,7 +598,7 @@ ok(sandbox.localStorage.getItem('mario_cleared') === String(Levels.count),
 setKeys([]); Game.state = 'title'; Game.step();
 press('KeyC'); Game.step(); release('KeyC');
 ok(Game.state === 'levelstart', '按 C 未进入关卡开始画面: ' + Game.state);
-ok(Game.level.name === '1-3', '按 C 未继续到最后可用世界: ' + Game.level.name);
+ok(Game.level.name === '1-4', '按 C 未继续到最后可用世界: ' + Game.level.name);
 
 // 触屏的跳跃键同样应能在结束画面立即开始新局。
 setKeys([]); Game.state = 'gameover'; Game.step();
@@ -527,7 +606,7 @@ press('KeyZ'); Game.step(); release('KeyZ');
 ok(Game.state === 'levelstart', '结束画面按跳跃未开始新局: ' + Game.state);
 ok(Game.level.name === '1-1', '新局未从第一关开始: ' + Game.level.name);
 
-/* ---- 13. 渲染不报错 ---- */
+/* ---- 14. 渲染不报错 ---- */
 section('渲染');
 let renderErr = null;
 try {

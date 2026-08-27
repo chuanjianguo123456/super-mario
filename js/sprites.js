@@ -323,6 +323,78 @@ var Sprites = (function () {
     '..oooo..'
   ];
 
+  /* ---------- 食人花 16x24 ---------- */
+  var PIRANHA = [
+    '......KKKK......',
+    '.....KgGGgK.....',
+    '....KgGGGGGgK...',
+    '...KgGGGGGGGgK..',
+    '...KWWgGGgWWgK..',
+    '...KWWgGGgWWgK..',
+    '...KgGGGGGGGgK..',
+    '....KgGGGGGgK...',
+    '.....KgGGgGgK...',
+    '......KgggK.....',
+    '......KKKK......',
+    '.......KK.......',
+    '......KKKK......',
+    '.....KKKKKK.....',
+    '.....KKKKKK.....',
+    '.....KKKKKK.....',
+    '.....KKKKKK.....',
+    '.....KKKKKK.....',
+    '.....KKKKKK.....',
+    '.....KKKKKK.....',
+    '.....KKKKKK.....',
+    '.....KKKKKK.....',
+    '.....KKKKKK.....',
+    '.....KKKKKK.....'
+  ];
+
+  /* ---------- 库巴 32x32 ---------- */
+  var BOWSER = [
+    '........KKK.....................',
+    '.......KKOKK....................',
+    '......KOOOOKK...................',
+    '.....KOOOOOOOKK....KK...........',
+    '....KOOOOKKOOOK..KKOK..........',
+    '...KOOOOKKKKOOOKKOOOK..........',
+    '...KOOOOKKKKKOOOKOOOK..........',
+    '...KOOOOKKKKKKOOOKOOK..........',
+    '...KOOOOKKKKKKKOOKOOK..........',
+    '...KOOOOKKKKKKKKOKOOK..........',
+    '...KOOOOKKKKKKKKOKOOK..........',
+    '...KOOOOKKKKKKKKKKOOK..........',
+    '...KOOOOKKKKKKKKKKOK...........',
+    '...KOOOOKKKKKKKKKOOK...........',
+    '...KOOOOKKKKKKKKKOKK...........',
+    '...KOOOOKOOKKKKOOKKK...........',
+    '...KKOOOKKKKKKKOOKKK...........',
+    '....KKKKKOOOKKKOKKKK...........',
+    '...KKgggKKKKOKKKKKK............',
+    '..KggggggKKKKKKKKK.............',
+    '.KggGGGGGggKKKKKK..............',
+    '.KgGGGGGGGGgKKKK...............',
+    '.KgGGGGGGGGgKKKK...............',
+    '.KggGGGGGGGgKKKK...............',
+    '..KgggggggggKKKK...............',
+    '...KKKKKKKKKKKKK...............',
+    '....KKKWWWWWKKKK...............',
+    '....KKKWWWWWWWKK...............',
+    '....KKKWWWWWWWK................',
+    '....KKKWWWWWWWK................',
+    '....KKKWWWWWWWK................',
+    '....KKKKKKKKKKK................'
+  ];
+
+  // 库巴精灵来自手写字符画，统一规范为 32x32，避免少一个像素的行破坏预渲染。
+  var BOWSER_NORMALIZED = [];
+  for (var bowserRowIndex = 0; bowserRowIndex < 32; bowserRowIndex++) {
+    var bowserRow = BOWSER[bowserRowIndex] || '';
+    BOWSER_NORMALIZED.push((bowserRow + '................................').slice(0, 32));
+  }
+  BOWSER = BOWSER_NORMALIZED;
+
   /* ---------- 注册表 ---------- */
   var DEFS = {};
   function def(name, rows) { DEFS[name] = rows; }
@@ -355,6 +427,8 @@ var Sprites = (function () {
   def('coin_b', COIN_B);
   def('coin_c', COIN_C);
   def('fireball', FIREBALL);
+  def('piranha', PIRANHA);
+  def('bowser', BOWSER);
 
   /* ---------- 预渲染缓存 ---------- */
   var cache = {};

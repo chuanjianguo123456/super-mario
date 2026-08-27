@@ -109,10 +109,28 @@ var World = (function () {
     return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
   }
 
+  /** 检测玩家是否站在水管口，且按下键准备下潜。
+      返回 { tx, ty, ch } 水管口瓦片信息，或 null。
+      玩家碰撞盒只要覆盖水管的任一半边即可触发。 */
+  function pipeAtFeet(level, e) {
+    if (!e || e.vy !== 0) return null;
+    var foot = e.y + e.h;
+    var nearest = Math.round(foot / T) * T;
+    if (Math.abs(foot - nearest) > 2) return null;
+
+    var ty = Math.round(nearest / T);
+    var x0 = lo(e.x), x1 = hi(e.x + e.w);
+    for (var tx = x0; tx <= x1; tx++) {
+      var ch = tileAt(level, tx, ty);
+      if (ch === 'L' || ch === 'R') return { tx: tx, ty: ty, ch: ch };
+    }
+    return null;
+  }
+
   return {
     T: T, SOLID: SOLID,
     tileAt: tileAt, setTile: setTile, isSolid: isSolid, isBumpable: isBumpable,
     solidAtPixel: solidAtPixel, moveX: moveX, moveY: moveY, onGround: onGround,
-    forEachOverlap: forEachOverlap, overlaps: overlaps
+    forEachOverlap: forEachOverlap, overlaps: overlaps, pipeAtFeet: pipeAtFeet
   };
 })();

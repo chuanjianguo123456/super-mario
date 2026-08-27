@@ -53,7 +53,9 @@ var Levels = (function () {
         { en: ['g', 158, 12] },
         { en: ['g', 172, 12] }, { en: ['g', 174, 12] },
         { en: ['k', 177, 12] }
-      ]
+      ],
+      // 1-1 的高管可以直接进入地下关起点。
+      pipeLinks: [{ x: 57, to: { level: 1, x: 3, y: 10 } }]
     },
 
     /* ---------------- 1-2 地下关 ---------------- */
@@ -149,6 +151,71 @@ var Levels = (function () {
         { en: ['g', 136, 9] }, { en: ['g', 138, 9] },
         { en: ['g', 147, 10] }, { en: ['k', 149, 10] }
       ]
+    },
+
+    /* ---------------- 1-4 城堡关 ---------------- */
+    {
+      name: '1-4', theme: 'castle', time: 400, width: 200,
+      spawn: [3, 10], sceneryBase: 13, scenery: false,
+      flag: null, castle: null,
+      ops: [
+        { rect: [0, 13, 30, 2, 'X'] },
+        { rect: [32, 13, 21, 2, 'X'] },
+        { rect: [55, 13, 26, 2, 'X'] },
+        { rect: [83, 13, 31, 2, 'X'] },
+        { rect: [116, 13, 21, 2, 'X'] },
+        { rect: [139, 13, 61, 2, 'X'] },
+        { rect: [0, 0, 200, 2, 'X'] },
+
+        { pipe: [8, 1] },
+        { pipe: [22, 1] },
+        { pipe: [44, 1] },
+        { pipe: [68, 1] },
+        { pipe: [82, 1] },
+        { pipe: [100, 1] },
+
+        { row: [11, 5, 'ooooo'] },
+        { row: [11, 14, 'ooo'] },
+        { rect: [17, 9, 3, 1, 'B'] },
+        { row: [8, 30, 'BB'] },
+        { rect: [35, 10, 4, 1, 'B'] },
+        { row: [9, 52, '?M?'] },
+        { rect: [60, 9, 5, 1, 'B'] },
+        { row: [9, 72, 'B?B'] },
+        { row: [9, 87, '?'] },
+        { rect: [90, 10, 4, 1, 'B'] },
+        { row: [9, 105, 'BB'] },
+        { rect: [112, 9, 5, 1, 'B'] },
+        { row: [9, 128, '?M?'] },
+        { stairsUp: [144, 4] },
+        // 只有两格高的闸门，能跳过但不会把路线完全封死。
+        { rect: [152, 11, 1, 2, 'X'] },
+        { rect: [158, 10, 3, 1, 'S'] },
+        { rect: [174, 10, 3, 1, 'S'] },
+
+        { en: ['g', 12, 12] }, { en: ['g', 14, 12] },
+        { en: ['g', 30, 12] },
+        { en: ['k', 42, 12] },
+        { en: ['g', 53, 12] }, { en: ['g', 55, 12] },
+        { en: ['g', 66, 12] },
+        { en: ['k', 78, 12] },
+        { en: ['g', 90, 12] },
+        { en: ['g', 104, 12] }, { en: ['g', 106, 12] },
+        { en: ['g', 116, 12] },
+        { en: ['g', 130, 12] }, { en: ['g', 132, 12] },
+        { en: ['k', 142, 12] }
+      ],
+      piranhas: [
+        { x: 8, pipeY: 12 * 16 },
+        { x: 22, pipeY: 12 * 16 },
+        { x: 44, pipeY: 12 * 16 },
+        { x: 68, pipeY: 12 * 16 },
+        { x: 82, pipeY: 12 * 16 },
+        { x: 100, pipeY: 12 * 16 }
+      ],
+      // 库巴守在桥上；踩到斧头会结束战斗并结算本关。
+      boss: { x: 164 * 16, y: 13 * 16 },
+      axeX: 180 * 16
     }
   ];
 
@@ -179,6 +246,14 @@ var Levels = (function () {
     }
 
     var enemies = [];
+    var piranhas = [];
+    for (var pi = 0; pi < (d.piranhas || []).length; pi++) {
+      var pd = d.piranhas[pi];
+      piranhas.push({
+        x: pd.x * 16,
+        pipeY: pd.pipeY == null ? 12 * 16 : pd.pipeY
+      });
+    }
 
     for (var i = 0; i < d.ops.length; i++) {
       var op = d.ops[i], a;
@@ -258,7 +333,11 @@ var Levels = (function () {
       flagTopY: 3 * 16,
       flagBaseY: (d.sceneryBase) * 16,
       castleX: d.castle == null ? null : d.castle * 16,
-      castleY: d.sceneryBase * 16 - 80
+      castleY: d.sceneryBase * 16 - 80,
+      piranhas: piranhas,
+      pipeLinks: d.pipeLinks || [],
+      boss: d.boss || null,
+      axeX: d.axeX == null ? null : d.axeX
     };
   }
 
