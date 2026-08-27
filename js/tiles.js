@@ -177,7 +177,7 @@ var Tiles = (function () {
     switch (ch) {
       case 'X': drawGround(c, t); break;
       case 'B': drawBrick(c, t); break;
-      case '?': case 'M': drawBlock(c, t, frame || 0); break;
+      case '?': case 'M': case 'C': drawBlock(c, t, frame || 0); break;
       case 'U': drawUsed(c, t); break;
       case 'S': drawStone(c, t); break;
       case 'L': case 'R': case 'l': case 'r': drawPipe(c, t, ch); break;

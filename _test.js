@@ -86,6 +86,11 @@ function section(t) { console.log('\n== ' + t + ' =='); }
 /* ---- 1. 静态资源 ---- */
 section('资源自检');
 ok(Sprites.validate().length === 0, '精灵位图有错');
+const cometSprite = Sprites.size('comet');
+ok(cometSprite && cometSprite.w === 16 && cometSprite.h === 16,
+   '彗星精灵尺寸异常: ' + JSON.stringify(cometSprite));
+ok(typeof Entities.Comet === 'function', '缺少 Entities.Comet 实体接口');
+ok(typeof Sound.sfx.comet === 'function', '缺少 Sound.sfx.comet 音效接口');
 ok(Font.width('ABC', 1) === 17, '字体宽度计算异常: ' + Font.width('ABC', 1));
 ok(/data-key="KeyS"[^>]*aria-label="下水管"/.test(INDEX_HTML), '触控端缺少下水管按钮');
 ok(/manifest\.webmanifest/.test(INDEX_HTML), '页面未链接 PWA 清单');
@@ -98,6 +103,7 @@ ok(['assets/app-icon-192.png', 'assets/app-icon-512.png', 'assets/app-icon.svg']
 ok(/serviceWorker\.register\('sw\.js'\)/.test(PWA_APP), '页面未注册离线服务工作线程');
 ok(['./index.html', './js/game.js', './assets/app-icon-192.png', './assets/app-icon-512.png'].every(p => PWA_WORKER.includes(p)),
    '离线缓存清单不完整');
+ok(/CACHE_NAME = 'super-mario-v6'/.test(PWA_WORKER), '离线缓存版本未升级到 v6');
 ok(/beforeinstallprompt/.test(PWA_APP) && /id="install-app"/.test(INDEX_HTML),
    'PWA 缺少原生安装入口');
 ok(/mario_sound/.test(GAME_SOURCE), '声音偏好未接入本地存储');
@@ -136,14 +142,16 @@ for (let i = 0; i < Levels.count; i++) {
        tag + ' 敌人卡在方块里 @' + ex + ',' + ey);
   }
   // 金币不能埋在实体里（'o' 本身非实体，检查是否与实体重叠即可跳过）
-  let coinCount = 0, qCount = 0;
+  let coinCount = 0, qCount = 0, cometBlockCount = 0;
   for (const row of L.tiles) for (const ch of row) {
     if (ch === 'o') coinCount++;
     if (ch === '?' || ch === 'b' || ch === 'M' || ch === 'V') qCount++;
+    if (ch === 'C') cometBlockCount++;
   }
   console.log(`  ${tag}: 宽${L.width} 敌人${L.enemies.length} 空中币${coinCount} 道具块${qCount} 装饰${L.decor.length}`);
   ok(coinCount > 0, tag + ' 没有金币');
   ok(L.enemies.length > 0, tag + ' 没有敌人');
+  if (i === 0) ok(cometBlockCount > 0, tag + ' 缺少早期可获得的彗星块');
 }
 
 /* ---- 3. 启动与循环 ---- */
@@ -546,6 +554,7 @@ Game.startGame(0);
 while (Game.state !== 'playing') Game.step();
 makeBig(2);
 Game.ents.length = 0;
+ p.cometTimer = 480;
 const pipeTopY = 9 * 16;
 p.x = 57 * 16 + 10;
 p.y = pipeTopY - p.h;
@@ -553,9 +562,10 @@ p.vx = 0; p.vy = 0; p.onGround = true;
 setKeys(['ArrowDown']);
 Game.step();
 ok(!!Game.pipeTransition, '站在可传送水管上按下未开始下潜');
-frames(32, ['ArrowDown']);
+frames(31, ['ArrowDown']);
 ok(Game.level.name === '1-2', '水管未传送到地下关: ' + Game.level.name);
 ok(p.power === 2 && p.h === 30, '水管传送未保留玩家能力状态');
+ok(p.cometTimer === 480, '水管传送未完整保留彗星能量: ' + p.cometTimer);
 
 // 城堡关应生成食人花和库巴；玩家远离管口时食人花会冒出。
 Game.startGame(3);
@@ -640,7 +650,179 @@ while (Game.state !== 'win' && guard++ < 8000) {
 ok(Game.state === 'win', '通完全部关卡未进入 win，实为 ' + Game.state + '（guard=' + guard + '）');
 ok(Object.keys(seen).length === Levels.count, '未经过全部关卡: ' + Object.keys(seen).join(','));
 
-/* ---- 13. 存档与触屏重开 ---- */
+/* ---- 13. 彗星能量 ---- */
+section('彗星能量');
+
+function beginCometLevel(index, keepEntities) {
+  setKeys([]);
+  Game.startGame(index);
+  let guard = 0;
+  while (Game.state !== 'playing' && guard++ < 180) Game.step();
+  if (!keepEntities) Game.ents.length = 0;
+  frames(40, []);
+  return Game.state === 'playing';
+}
+
+// 1-1 早期 C 方块应顶出彗星，并且方块变成已用块。
+ok(beginCometLevel(0), '无法启动彗星块测试关卡');
+const cometTileX = 22, cometTileY = 9;
+ok(World.tileAt(Game.level, cometTileX, cometTileY) === 'C', '1-1 早期位置不是 C 彗星块');
+ok(standUnder(cometTileX), '彗星块下方站位失败');
+
+// 彗星实体应按约定完成出块、撞墙反向、落地弹跳和出界移除。
+const cometProbeGame = { level: Game.level };
+const emergingComet = new Entities.Comet(40, 160);
+const emergeY = emergingComet.y;
+emergingComet.emerge = 1;
+emergingComet.update(cometProbeGame);
+ok(emergingComet.y === emergeY - 1 && emergingComet.emerge === 0,
+   '彗星出块上升行为异常');
+const wallComet = new Entities.Comet(Game.level.pixelWidth - 14, 40);
+wallComet.emerge = 0; wallComet.vx = 1;
+wallComet.update(cometProbeGame);
+ok(wallComet.vx < 0, '彗星撞墙后未反向');
+const bounceComet = new Entities.Comet(40, 208 - 16);
+bounceComet.emerge = 0; bounceComet.vy = 1;
+bounceComet.update(cometProbeGame);
+ok(bounceComet.vy === -4, '彗星落地后未弹跳');
+const lostComet = new Entities.Comet(40, Game.level.pixelHeight + 65);
+lostComet.emerge = 0;
+lostComet.update(cometProbeGame);
+ok(lostComet.remove, '彗星出界后未移除');
+
+release('KeyZ'); Game.step();
+press('KeyZ');
+let spawnedComet = null;
+for (let i = 0; i < 60; i++) {
+  Game.step();
+  spawnedComet = Game.ents.find(e => e.type === 'comet');
+  if (spawnedComet) break;
+}
+release('KeyZ');
+ok(!!spawnedComet, '顶 C 方块未生成彗星实体');
+ok(World.tileAt(Game.level, cometTileX, cometTileY) === 'U', '顶 C 方块后未变为已用块');
+if (spawnedComet) {
+  const cometScore0 = Game.score;
+  spawnedComet.emerge = 0;
+  spawnedComet.x = p.x;
+  spawnedComet.y = p.y;
+  Game.step();
+  ok(p.cometTimer === 480, '收集彗星后持续时间不是 480: ' + p.cometTimer);
+  ok(!Game.ents.includes(spawnedComet), '收集彗星后实体仍未清除');
+  ok(Game.score === cometScore0 + 1000, '收集彗星未加 1000 分: ' + (Game.score - cometScore0));
+  let cometRenderErr = null;
+  try { Game.render(); } catch (e) { cometRenderErr = e; }
+  ok(!cometRenderErr, '彗星光环或 HUD 渲染抛异常: ' + (cometRenderErr && cometRenderErr.message));
+}
+
+// 彗星状态接触四类普通威胁都会消灭目标并保持存活。
+const cometTargets = [
+  { name: '板栗仔', spawn: () => new Entities.Goomba(p.x - 2, p.y + p.h) },
+  { name: '乌龟', spawn: () => new Entities.Koopa(p.x - 2, p.y + p.h) },
+  { name: '龟壳', spawn: () => new Entities.Shell(p.x - 2, p.y + p.h) },
+  { name: '食人花', spawn: () => new Entities.Piranha(p.x - 2, p.y) }
+];
+for (const target of cometTargets) {
+  ok(beginCometLevel(0), '无法重置' + target.name + '彗星测试关卡');
+  p.cometTimer = 480;
+  p.invuln = 0;
+  const enemyScore0 = Game.score;
+  const targetEnt = target.spawn();
+  Game.ents.push(targetEnt);
+  Game.step();
+  ok(targetEnt.remove || !Game.ents.includes(targetEnt), '彗星未清除' + target.name);
+  ok(Game.state === 'playing' && !p.dead, '彗星碰到' + target.name + '时玩家受到伤害');
+  ok(Game.score >= enemyScore0 + 200, '彗星清除' + target.name + '未加分');
+}
+
+// 彗星免疫库巴火焰，但火焰本身应消散。
+ok(beginCometLevel(0), '无法启动火焰免伤测试关卡');
+p.cometTimer = 480;
+p.invuln = 0;
+const cometFire = new Entities.BowserFire(p.x, p.y, 1);
+Game.ents.push(cometFire);
+Game.step();
+ok(Game.state === 'playing' && !p.dead, '彗星状态仍被库巴火焰伤害');
+ok(cometFire.remove || !Game.ents.includes(cometFire), '彗星接触后库巴火焰未消散');
+
+// 库巴只受一次伤害，连续重叠由自身 hurtTimer 抑制。
+ok(beginCometLevel(3, true), '无法启动库巴彗星测试关卡');
+const cometBoss = Game.ents.find(e => e.type === 'bowser');
+ok(!!cometBoss, '彗星 Boss 测试缺少库巴');
+if (cometBoss) {
+  p.cometTimer = 480;
+  p.invuln = 0;
+  cometBoss.x = p.x;
+  cometBoss.y = Game.level.flagBaseY - cometBoss.h;
+  cometBoss.vx = 0; cometBoss.vy = 0; cometBoss.hurtTimer = 0;
+  const cometHp0 = cometBoss.hp;
+  Game.step();
+  ok(cometBoss.hp === cometHp0 - 1, '彗星未让库巴损失一格生命');
+  frames(30, []);
+  ok(cometBoss.hp === cometHp0 - 1, '彗星与库巴持续重叠发生连击');
+}
+
+// 效果结束后，接触普通敌人应重新受到伤害。
+ok(beginCometLevel(0), '无法启动彗星到期测试关卡');
+p.cometTimer = 1;
+p.power = 0; p.invuln = 0;
+const expiredCometEnemy = new Entities.Goomba(p.x - 2, p.y + p.h);
+Game.ents.push(expiredCometEnemy);
+Game.step();
+ok(p.cometTimer === 0, '彗星持续时间未在最后一帧结束');
+ok(Game.state === 'dying', '彗星结束后接触敌人仍保持无敌');
+
+// 计时归零是强制死亡条件，彗星期间也不能绕过。
+ok(beginCometLevel(0), '无法启动彗星时间耗尽测试关卡');
+Game.ents.length = 0;
+p.cometTimer = 20000;
+let cometTimeoutGuard = 0;
+while (Game.state === 'playing' && cometTimeoutGuard++ < 10000) Game.step();
+ok(Game.state === 'dying', '彗星状态绕过了时间耗尽死亡');
+ok(p.cometTimer === 0, '时间耗尽死亡后彗星状态未清除');
+
+// 彗星不保护坠坑，死亡时效果必须清除。
+ok(beginCometLevel(0), '无法启动坠坑测试关卡');
+p.cometTimer = 480;
+p.x = 69 * 16 + 2;
+p.y = 13 * 16 - p.h;
+p.vx = 0; p.vy = 0; p.onGround = false;
+frames(48, []);
+ok(Game.state === 'dying', '彗星状态坠坑后没有死亡: ' + Game.state);
+ok(p.cometTimer === 0, '坠坑死亡后彗星状态未清除: ' + p.cometTimer);
+
+// 新游戏和旗杆结算也必须清除彗星；旗杆奖励应随高度严格分档。
+p.cometTimer = 480;
+Game.startGame(0);
+ok(p.cometTimer === 0, '新游戏未清除彗星状态');
+
+function flagRewardAt(fraction, timer) {
+  setKeys([]);
+  Game.startGame(0);
+  let guard = 0;
+  while (Game.state !== 'playing' && guard++ < 180) Game.step();
+  Game.ents.length = 0;
+  frames(40, []);
+
+  const poleBottom = Game.level.flagBaseY - p.h;
+  p.x = Game.level.flagX + 6 - p.w - 0.05;
+  p.y = Math.round(Game.level.flagTopY + (poleBottom - Game.level.flagTopY) * fraction);
+  p.vx = 0; p.vy = 0; p.onGround = p.y >= poleBottom;
+  p.invuln = 0; p.growTimer = 0; p.cometTimer = timer || 0;
+  const flagScore0 = Game.score;
+  setKeys(['ArrowRight']);
+  Game.step();
+  setKeys([]);
+  return { bonus: Game.score - flagScore0, timer: p.cometTimer, clear: Game.clear };
+}
+
+const flagRewards = [0.1, 0.3, 0.5, 0.7, 0.9].map(fraction => flagRewardAt(fraction, 0).bonus);
+ok(flagRewards.join(',') === '5000,2000,800,400,100',
+   '旗杆高度分档错误: ' + flagRewards.join(','));
+const cometFlagClear = flagRewardAt(0.5, 480);
+ok(!!cometFlagClear.clear && cometFlagClear.timer === 0, '旗杆通关未清除彗星状态');
+
+/* ---- 14. 存档与触屏重开 ---- */
 section('存档与重开');
 ok(Game.worldsCleared === Levels.count, '全通后未记录全部世界: ' + Game.worldsCleared);
 ok(sandbox.localStorage.getItem('mario_cleared') === String(Levels.count),
@@ -658,7 +840,7 @@ press('KeyZ'); Game.step(); release('KeyZ');
 ok(Game.state === 'levelstart', '结束画面按跳跃未开始新局: ' + Game.state);
 ok(Game.level.name === '1-1', '新局未从第一关开始: ' + Game.level.name);
 
-/* ---- 14. 渲染不报错 ---- */
+/* ---- 15. 渲染不报错 ---- */
 section('渲染');
 let renderErr = null;
 try {

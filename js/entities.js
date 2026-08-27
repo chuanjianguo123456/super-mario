@@ -246,6 +246,33 @@ var Entities = (function () {
     this.offscreenKill(g.level);
   };
 
+  /* ---------- 彗星能量 ---------- */
+  function Comet(x, y) {
+    Entity.call(this, x + 2, y, 12, 16);
+    this.sx = -2;
+    this.type = 'comet';
+    this.sprite = 'comet';
+    this.harmless = true;
+    this.emerge = 16;
+  }
+  Comet.prototype = Object.create(Entity.prototype);
+
+  Comet.prototype.update = function (g) {
+    if (this.emerge > 0) {
+      this.emerge--; this.y -= 1;
+      if (this.emerge === 0) this.vx = ITEM_SPEED;
+      return;
+    }
+
+    var beforeMove = this.vx;
+    if (World.moveX(g.level, this)) this.vx = -beforeMove;
+    this.vy = Math.min(this.vy + GRAVITY, 8);
+    var r = World.moveY(g.level, this);
+    if (r.ground) this.vy = -4;
+    this.flip = this.vx < 0;
+    this.offscreenKill(g.level);
+  };
+
   /* ---------- 火焰花 ---------- */
   function Flower(x, y) {
     Entity.call(this, x + 2, y, 12, 16);
@@ -573,7 +600,7 @@ var Entities = (function () {
 
   return {
     Entity: Entity, Goomba: Goomba, Koopa: Koopa, Shell: Shell,
-    Mushroom: Mushroom, Flower: Flower, Fireball: Fireball,
+    Mushroom: Mushroom, Comet: Comet, Flower: Flower, Fireball: Fireball,
     Piranha: Piranha, Bowser: Bowser, BowserFire: BowserFire,
     Puff: Puff, CoinPop: CoinPop, ScorePop: ScorePop, Debris: Debris,
     GRAVITY: GRAVITY

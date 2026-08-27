@@ -322,6 +322,25 @@ var Sprites = (function () {
     '.oOOOOo.',
     '..oooo..'
   ];
+  // 原创彗星：暖色核心拖着冷色像素尾迹，不使用外部或官方精灵素材。
+  var COMET = [
+    '................',
+    '..........K.....',
+    '.........KWB....',
+    '........KWBYK...',
+    '.......KWBYYYK..',
+    '......KWBYWWYYK.',
+    '.....KWBYWWWWYYK',
+    '....KWBYWWWWYYK.',
+    '...KWBYWWWWYYK..',
+    '..KWBYWWWWYYK...',
+    '.KWBYWWWWYYK....',
+    'KWBYWWWWYYK.....',
+    '.KBBYYYYYK......',
+    '..KBBYYYK.......',
+    '...KBBYK........',
+    '....KKK.........'
+  ];
 
   /* ---------- 食人花 16x24 ---------- */
   var PIRANHA = [
@@ -427,6 +446,7 @@ var Sprites = (function () {
   def('coin_b', COIN_B);
   def('coin_c', COIN_C);
   def('fireball', FIREBALL);
+  def('comet', COMET);
   def('piranha', PIRANHA);
   def('bowser', BOWSER);
 

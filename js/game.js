@@ -42,7 +42,8 @@ var Game = (function () {
     invuln: 0, growTimer: 0, shrinking: false,
     dead: false, deadTimer: 0, deadBounced: false,
     stompCombo: 0, onPole: false, autoWalk: false,
-    coyoteTimer: 0, jumpBufferTimer: 0
+    coyoteTimer: 0, jumpBufferTimer: 0,
+    cometTimer: 0, cometBossTarget: null
   };
 
   /* ---------- 存档 ---------- */
@@ -111,6 +112,7 @@ var Game = (function () {
     if (level.boss) ents.push(new Entities.Bowser(level.boss.x, level.boss.y));
 
     var pw = player.power;
+    var cometTimer = player.cometTimer;
     player.x = level.spawn.x;
     player.w = 12;
     player.h = keepStats && pw > 0 ? 30 : 15;
@@ -123,6 +125,8 @@ var Game = (function () {
     player.dead = false; player.deadTimer = 0; player.deadBounced = false;
     player.stompCombo = 0; player.onPole = false; player.autoWalk = false;
     player.coyoteTimer = 0; player.jumpBufferTimer = 0;
+    player.cometTimer = keepStats ? cometTimer : 0;
+    player.cometBossTarget = null;
   }
 
   function spawn(e) { ents.push(e); }
@@ -196,6 +200,15 @@ var Game = (function () {
       return;
     }
 
+    if (ch === 'C') { // 彗星能量块
+      World.setTile(level, tx, ty, 'U');
+      spawn(new Entities.Comet(px, py));
+      Sound.sfx.bump();
+      pushBump(tx, ty);
+      flipEnemiesOn(tx, ty);
+      return;
+    }
+
     Sound.sfx.bump(); // U / S / X 等硬块
   }
 
@@ -244,13 +257,15 @@ var Game = (function () {
   }
 
   function hurt() {
-    if (player.invuln > 0 || player.dead || clear) return;
+    if (player.cometTimer > 0 || player.invuln > 0 || player.dead || clear) return;
     if (player.power > 0) shrink();
     else die();
   }
 
   function die() {
     if (player.dead) return;
+    player.cometTimer = 0;
+    player.cometBossTarget = null;
     player.dead = true;
     player.deadTimer = 0;
     player.deadBounced = false;
@@ -304,9 +319,11 @@ var Game = (function () {
 
     var to = pipeTransition.to;
     var power = player.power;
+    var cometTimer = player.cometTimer;
     loadLevel(to.level, true);
     player.power = power;
     player.h = power > 0 ? 30 : 15;
+    player.cometTimer = cometTimer;
     player.x = to.x * T + 2;
     player.y = to.y * T - player.h;
     player.vx = 0; player.vy = 0;
@@ -327,10 +344,21 @@ var Game = (function () {
     if (player.power > 0) Sound.sfx.jumpBig(); else Sound.sfx.jump();
   }
 
+  function tickCometTimer() {
+    if (player.cometTimer <= 0) return;
+    player.cometTimer--;
+    if (player.cometTimer === 0) player.cometBossTarget = null;
+  }
+
   function updatePlayer() {
-    if (player.growTimer > 0) { player.growTimer--; if (player.growTimer === 0) player.shrinking = false; return; }
+    if (player.growTimer > 0) {
+      tickCometTimer();
+      player.growTimer--; if (player.growTimer === 0) player.shrinking = false;
+      return;
+    }
     if (player.invuln > 0) player.invuln--;
     if (tryEnterPipe()) return;
+    tickCometTimer();
 
     if (player.onGround) player.coyoteTimer = COYOTE_FRAMES;
     else if (player.coyoteTimer > 0) player.coyoteTimer--;
@@ -392,7 +420,11 @@ var Game = (function () {
 
     // 掉坑
     if (player.y > level.pixelHeight + 16) {
-      if (!player.dead) { player.dead = true; player.deadTimer = 30; player.deadBounced = true; Sound.sfx.death(); state = 'dying'; stateTimer = 0; }
+      if (!player.dead) {
+        player.cometTimer = 0;
+        player.dead = true; player.deadTimer = 30; player.deadBounced = true;
+        Sound.sfx.death(); state = 'dying'; stateTimer = 0;
+      }
     }
 
     // 到旗杆
@@ -411,6 +443,13 @@ var Game = (function () {
   function killByHit(e, pts, x, y) {
     e.flipOut();
     addScore(pts, x, y);
+  }
+
+  function clearWithComet(e) {
+    e.remove = true;
+    addScore(200, e.x, e.y);
+    spawn(new Entities.Puff(e.x + e.w / 2 - 8, e.y + e.h / 2 - 8));
+    Sound.sfx.kick();
   }
 
   function updateEntities() {
@@ -465,6 +504,7 @@ var Game = (function () {
     // 玩家 vs 实体
     if (!player.dead && !clear && player.growTimer === 0) {
       var pb = playerHitbox();
+      var cometBossTouch = null;
       for (var k = 0; k < ents.length; k++) {
         var e2 = ents[k];
         if (e2.remove || e2.type === 'fx' || e2.type === 'fireball') continue;
@@ -473,6 +513,23 @@ var Game = (function () {
         if (e2.type === 'bowserfire') {
           e2.remove = true;
           hurt();
+          continue;
+        }
+
+        if (e2.type === 'comet') {
+          e2.remove = true;
+          player.cometTimer = 480;
+          Sound.sfx.comet();
+          addScore(1000, e2.x, e2.y - 8);
+          continue;
+        }
+
+        if (player.cometTimer > 0 && isEnemy(e2)) {
+          if (e2.type === 'bowser') {
+            cometBossTouch = e2;
+            if (player.cometBossTarget !== e2) e2.hit(G);
+          }
+          else clearWithComet(e2);
           continue;
         }
 
@@ -526,6 +583,7 @@ var Game = (function () {
           hurt();
         }
       }
+      player.cometBossTarget = cometBossTouch;
     }
 
     // 清理
@@ -536,18 +594,21 @@ var Game = (function () {
 
   /* ---------- 过关 ---------- */
   function startClear() {
+    var bonus = flagBonusForY(player.y);
     clear = { phase: 'slide', t: 0, flagY: level.flagTopY + 8, bonusDone: false };
+    player.cometTimer = 0;
     player.onPole = true;
     player.x = level.flagX + 4;
     player.vx = 0; player.vy = 0;
     player.face = -1;
     Sound.sfx.flag();
-    addScore(2000, player.x, player.y - 12);
+    addScore(bonus, player.x, player.y - 12);
   }
 
   function startBossClear() {
     if (clear) return;
     clear = { phase: 'boss', t: 0, flagY: 0, bonusDone: false };
+    player.cometTimer = 0;
     player.vx = 0; player.vy = 0;
     player.autoWalk = true;
     for (var i = 0; i < ents.length; i++) {
@@ -641,6 +702,7 @@ var Game = (function () {
       Sound.stopMusic();
       return;
     }
+    player.cometTimer = 0;
     loadLevel(levelIndex + 1, true);
     state = 'levelstart'; stateTimer = 0;
     Sound.stopMusic();
@@ -665,6 +727,17 @@ var Game = (function () {
     addCoin: addCoin,
     hurt: hurt
   };
+
+  function flagBonusForY(y) {
+    var bottom = level.flagBaseY - player.h;
+    var span = Math.max(1, bottom - level.flagTopY);
+    var height = (bottom - y) / span;
+    if (height >= 0.8) return 5000;
+    if (height >= 0.6) return 2000;
+    if (height >= 0.4) return 800;
+    if (height >= 0.2) return 400;
+    return 100;
+  }
 
   /* ---------- 渲染：背景与瓦片 ---------- */
   function drawBackground() {
@@ -776,6 +849,25 @@ var Game = (function () {
     Sprites.draw(ctx, name, dx, dy, player.face < 0 && !player.onPole, v);
   }
 
+  function drawCometAura() {
+    if (player.cometTimer <= 0 || player.dead) return;
+
+    var cx = Math.round(player.x - cam + player.w / 2);
+    var cy = Math.round(player.y + player.h / 2);
+    var pulse = Math.floor(frame / 2) % 8;
+    var particles = [
+      [-10, -4], [-6, -11], [2, -13], [9, -8],
+      [12, 1], [7, 10], [-2, 12], [-10, 7]
+    ];
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[(i + pulse) % particles.length];
+      ctx.fillStyle = i % 2 === 0 ? '#58d8ff' : '#fcd800';
+      ctx.fillRect(cx + p[0], cy + p[1], i % 3 === 0 ? 3 : 2, i % 3 === 0 ? 3 : 2);
+    }
+    ctx.fillStyle = '#fcfcfc';
+    ctx.fillRect(cx - 1, cy - 1, 3, 3);
+  }
+
   /* ---------- 渲染：HUD ---------- */
   function pad(n, w) {
     var s = String(n);
@@ -813,6 +905,10 @@ var Game = (function () {
 
     Font.drawShadow(ctx, 'TIME', 208, 8, c, 1);
     Font.drawShadow(ctx, pad(Math.max(0, timeLeft), 3), 212, 17, timeLeft <= 100 && blink ? '#f87858' : c, 1);
+
+    if (player.cometTimer > 0) {
+      Font.drawShadow(ctx, 'COMET ' + Math.ceil(player.cometTimer / 60) + 'S', 8, 28, '#58d8ff', 1);
+    }
   }
 
   function activeBoss() {
@@ -925,6 +1021,7 @@ var Game = (function () {
       if (e.type !== 'fx') e.draw(ctx, cam);
     }
 
+    drawCometAura();
     drawPlayer();
     drawHUD();
     drawBossHUD();
@@ -942,7 +1039,7 @@ var Game = (function () {
   /* ---------- 状态更新 ---------- */
   function startGame(startAt) {
     score = 0; coins = 0; lives = 3;
-    player.power = 0;
+    player.power = 0; player.cometTimer = 0;
     Sound.setSpeed(1);
     loadLevel(startAt || 0, false);
     state = 'levelstart'; stateTimer = 0;
@@ -956,7 +1053,7 @@ var Game = (function () {
       Sound.sfx.gameover();
       return;
     }
-    player.power = 0;
+    player.power = 0; player.cometTimer = 0;
     Sound.setSpeed(1);
     loadLevel(levelIndex, false);
     state = 'levelstart'; stateTimer = 0;
