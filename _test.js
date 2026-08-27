@@ -8,6 +8,7 @@ const INDEX_HTML = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8');
 const PWA_MANIFEST = JSON.parse(fs.readFileSync(path.join(DIR, 'manifest.webmanifest'), 'utf8'));
 const PWA_APP = fs.readFileSync(path.join(DIR, 'app.js'), 'utf8');
 const PWA_WORKER = fs.readFileSync(path.join(DIR, 'sw.js'), 'utf8');
+const GAME_SOURCE = fs.readFileSync(path.join(DIR, 'js', 'game.js'), 'utf8');
 
 /* ---- DOM 桩 ---- */
 function ctxStub() {
@@ -73,7 +74,7 @@ function setKeys(codes) {
 }
 function tap(code) { release(code); press(code); }
 
-const { Game, Levels, World, Sprites, Entities, Font, Tiles } = sandbox;
+const { Game, Levels, World, Sprites, Entities, Font, Tiles, Sound } = sandbox;
 
 let fails = 0, passes = 0;
 function ok(cond, msg) {
@@ -97,6 +98,9 @@ ok(['assets/app-icon-192.png', 'assets/app-icon-512.png', 'assets/app-icon.svg']
 ok(/serviceWorker\.register\('sw\.js'\)/.test(PWA_APP), '页面未注册离线服务工作线程');
 ok(['./index.html', './js/game.js', './assets/app-icon-192.png', './assets/app-icon-512.png'].every(p => PWA_WORKER.includes(p)),
    '离线缓存清单不完整');
+ok(/beforeinstallprompt/.test(PWA_APP) && /id="install-app"/.test(INDEX_HTML),
+   'PWA 缺少原生安装入口');
+ok(/mario_sound/.test(GAME_SOURCE), '声音偏好未接入本地存储');
 
 /* ---- 2. 关卡几何 ---- */
 section('关卡几何');
@@ -138,9 +142,14 @@ for (let i = 0; i < Levels.count; i++) {
 
 /* ---- 3. 启动与循环 ---- */
 section('启动');
+sandbox.localStorage.setItem('mario_sound', '0');
 Game.init();
 ok(rafQueue.length === 1, 'init 未启动主循环');
 ok(Game.state === 'title', '初始状态应为 title，实为 ' + Game.state);
+ok(!Sound.isEnabled(), '启动时未恢复已保存的静音状态');
+tap('KeyM'); Game.step(); release('KeyM');
+ok(Sound.isEnabled() && sandbox.localStorage.getItem('mario_sound') === '1',
+   '切换声音后未恢复并保存偏好');
 
 // 逐帧推进（直接调 step，绕过 rAF 时序）
 function frames(n, keys) {

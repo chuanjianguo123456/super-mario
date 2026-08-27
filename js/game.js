@@ -48,6 +48,7 @@ var Game = (function () {
       highScore = parseInt(localStorage.getItem('mario_high') || '0', 10) || 0;
       worldsCleared = Math.max(0, Math.min(Levels.count,
         parseInt(localStorage.getItem('mario_cleared') || '0', 10) || 0));
+      if (localStorage.getItem('mario_sound') === '0' && Sound.isEnabled()) Sound.toggle();
     } catch (e) {
       highScore = 0;
       worldsCleared = 0;
@@ -63,6 +64,9 @@ var Game = (function () {
     if (cleared <= worldsCleared) return;
     worldsCleared = cleared;
     try { localStorage.setItem('mario_cleared', String(worldsCleared)); } catch (e) {}
+  }
+  function saveSound() {
+    try { localStorage.setItem('mario_sound', Sound.isEnabled() ? '1' : '0'); } catch (e) {}
   }
 
   /* ---------- 关卡装载 ---------- */
@@ -958,7 +962,7 @@ var Game = (function () {
     Input.poll();
     frame++;
 
-    if (Input.justPressed('mute')) Sound.toggle();
+    if (Input.justPressed('mute')) { Sound.toggle(); saveSound(); }
 
     if (state === 'title') {
       if (Input.justPressed('continue') && worldsCleared > 0) {
