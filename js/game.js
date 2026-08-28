@@ -23,6 +23,7 @@ var Game = (function () {
   var frame = 0;
   var acc = 0, last = 0;
   var paused = false;
+  var debugMode = false;
 
   var levelIndex = 0;
   var level = null;
@@ -140,6 +141,17 @@ var Game = (function () {
     coins++;
     score += 200;
     Sound.sfx.coin();
+    // 金币收集特效
+    for (var i = 0; i < 3; i++) {
+      var angle = Math.random() * Math.PI * 2;
+      var speed = 0.8 + Math.random() * 1.2;
+      ents.push(new Entities.StarParticle(
+        player.x + player.w / 2,
+        player.y + player.h / 2,
+        Math.cos(angle) * speed,
+        Math.sin(angle) * speed - 1
+      ));
+    }
     if (coins >= 100) {
       coins -= 100;
       oneUp();
@@ -571,6 +583,12 @@ var Game = (function () {
           player.vy = Input.isDown('jump') ? P.stompBounceHold : P.stompBounce;
           player.jumping = Input.isDown('jump');
           player.onGround = false;
+          // 踩踏粒子效果
+          for (var p = 0; p < 4; p++) {
+            var px = e2.x + e2.w / 2 + (Math.random() - 0.5) * e2.w;
+            var py = e2.y;
+            ents.push(new Entities.StarParticle(px, py, (Math.random() - 0.5) * 2, -Math.random() * 2));
+          }
           if (e2.type === 'shell') {
             if (e2.moving) { e2.moving = false; e2.vx = 0; Sound.sfx.stomp(); addScore(100, e2.x, e2.y); }
             else { var d2 = player.face; e2.kick(d2, G); addScore(400, e2.x, e2.y); }
@@ -815,6 +833,83 @@ var Game = (function () {
     }
   }
 
+  /* ---------- 调试渲染 ---------- */
+  function drawDebugBox(obj, color, cam) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(Math.round(obj.x - cam), Math.round(obj.y), obj.w, obj.h);
+  }
+
+  function drawVelocityVector(obj, cam) {
+    if (obj.vx === 0 && obj.vy === 0) return;
+    var cx = Math.round(obj.x - cam + obj.w / 2);
+    var cy = Math.round(obj.y + obj.h / 2);
+    var scale = 5;
+    var ex = cx + obj.vx * scale;
+    var ey = cy + obj.vy * scale;
+
+    ctx.strokeStyle = '#00ff00';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+
+    // 箭头
+    var angle = Math.atan2(obj.vy, obj.vx);
+    var arrowSize = 4;
+    ctx.beginPath();
+    ctx.moveTo(ex, ey);
+    ctx.lineTo(ex - arrowSize * Math.cos(angle - Math.PI / 6), ey - arrowSize * Math.sin(angle - Math.PI / 6));
+    ctx.moveTo(ex, ey);
+    ctx.lineTo(ex - arrowSize * Math.cos(angle + Math.PI / 6), ey - arrowSize * Math.sin(angle + Math.PI / 6));
+    ctx.stroke();
+  }
+
+  function drawDebugInfo() {
+    if (!debugMode) return;
+
+    // 玩家碰撞箱
+    drawDebugBox(player, '#00ff00', cam);
+    drawVelocityVector(player, cam);
+
+    // 显示玩家详细信息
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(4, 44, 120, 50);
+    ctx.fillStyle = '#00ff00';
+    ctx.font = '10px monospace';
+    ctx.fillText('POS: ' + Math.round(player.x) + ',' + Math.round(player.y), 8, 54);
+    ctx.fillText('VEL: ' + player.vx.toFixed(2) + ',' + player.vy.toFixed(2), 8, 66);
+    ctx.fillText('GRD: ' + (player.onGround ? 'YES' : 'NO') + ' PWR: ' + player.power, 8, 78);
+    ctx.fillText('FPS: 60 ENT: ' + ents.length, 8, 90);
+
+    // 敌人碰撞箱
+    for (var i = 0; i < ents.length; i++) {
+      var e = ents[i];
+      if (e.type === 'fx') continue;
+      var color = e.dead ? '#666666' : (e.harmless ? '#ffff00' : '#ff0000');
+      drawDebugBox(e, color, cam);
+      if (!e.dead && e.type !== 'fx') drawVelocityVector(e, cam);
+    }
+
+    // 瓦片网格
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1;
+    var x0 = Math.floor(cam / T) * T - cam;
+    for (var gx = 0; gx < VW + T; gx += T) {
+      ctx.beginPath();
+      ctx.moveTo(x0 + gx, 0);
+      ctx.lineTo(x0 + gx, VH);
+      ctx.stroke();
+    }
+    for (var gy = 0; gy < VH; gy += T) {
+      ctx.beginPath();
+      ctx.moveTo(0, gy);
+      ctx.lineTo(VW, gy);
+      ctx.stroke();
+    }
+  }
+
   /* ---------- 渲染：玩家 ---------- */
   function playerSprite() {
     var big = player.h > 20;
@@ -971,7 +1066,18 @@ var Game = (function () {
     Font.drawCentered(ctx, 'SUPER', 128, 44 + titlePulse, '#fcfcfc', 4);
     Font.drawCentered(ctx, 'MARIO', 128, 76 + titlePulse, '#d82800', 4);
     Font.drawCentered(ctx, 'TOP-' + pad(highScore, 6), 128, 112, '#fcd800', 1);
-    Font.drawCentered(ctx, 'WORLDS CLEAR ' + worldsCleared + '/' + Levels.count, 128, 122, '#fcfcfc', 1);
+
+    // 显示关卡进度条
+    var progressX = 64, progressY = 122, progressW = 128, progressH = 6;
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(progressX - 1, progressY - 1, progressW + 2, progressH + 2);
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(progressX, progressY, progressW, progressH);
+    var progress = worldsCleared / Levels.count;
+    ctx.fillStyle = worldsCleared >= Levels.count ? '#32d800' : '#fcd800';
+    ctx.fillRect(progressX, progressY, Math.round(progressW * progress), progressH);
+
+    Font.drawCentered(ctx, worldsCleared + '/' + Levels.count + ' WORLDS CLEARED', 128, 133, '#fcfcfc', 1);
 
     Sprites.draw(ctx, 'mario_big_idle', 40, 176, false, null);
     Sprites.draw(ctx, 'goomba', 200, 192, false, null);
@@ -981,10 +1087,10 @@ var Game = (function () {
 
     if (Math.floor(frame / 20) % 2 === 0) {
       var startText = worldsCleared > 0 ? 'ENTER-NEW RUN C-CONTINUE' : 'PRESS ENTER OR JUMP';
-      Font.drawCentered(ctx, startText, 128, 134, '#fcfcfc', 1);
+      Font.drawCentered(ctx, startText, 128, 148, '#fcfcfc', 1);
     }
-    Font.drawCentered(ctx, 'ARROWS-MOVE   Z-JUMP   X-RUN/FIRE', 128, 149, '#fcfcfc', 1);
-    Font.drawCentered(ctx, 'P-PAUSE   R-RESTART   M-SOUND', 128, 159, '#fcfcfc', 1);
+    Font.drawCentered(ctx, 'ARROWS-MOVE   Z-JUMP   X-RUN/FIRE', 128, 163, '#fcfcfc', 1);
+    Font.drawCentered(ctx, 'P-PAUSE   R-RESTART   M-SOUND   F3-DEBUG', 128, 173, '#fcfcfc', 1);
   }
 
   function drawLevelStart() {
@@ -1041,6 +1147,7 @@ var Game = (function () {
 
     drawCometAura();
     drawPlayer();
+    drawDebugInfo();
     drawHUD();
     drawBossHUD();
 
@@ -1097,8 +1204,10 @@ var Game = (function () {
     timeAcc++;
     if (timeAcc < 24) return; // 每 0.4 秒减 1
     timeAcc = 0;
+    var prevTime = timeLeft;
     timeLeft--;
-    if (timeLeft === 100) Sound.setSpeed(1.35);
+    if (timeLeft === 100) { Sound.setSpeed(1.35); Sound.sfx.warning(); }
+    if (timeLeft === 50 && prevTime > 50) Sound.sfx.warning();
     if (timeLeft <= 0) { timeLeft = 0; die(); }
   }
 
@@ -1116,6 +1225,7 @@ var Game = (function () {
     frame++;
 
     if (Input.justPressed('mute')) toggleSound();
+    if (Input.justPressed('debug')) debugMode = !debugMode;
 
     if (state === 'title') {
       if (Input.justPressed('continue') && worldsCleared > 0) {

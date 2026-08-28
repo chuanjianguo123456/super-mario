@@ -10,7 +10,7 @@ var Input = (function () {
     'Enter': 'start', 'NumpadEnter': 'start',
     'KeyC': 'continue',
     'KeyP': 'pause', 'Escape': 'pause',
-    'KeyR': 'reset', 'KeyM': 'mute'
+    'KeyR': 'reset', 'KeyM': 'mute', 'F3': 'debug'
   };
 
   var down = {}, pressed = {}, prev = {};

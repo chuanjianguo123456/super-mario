@@ -393,7 +393,9 @@ var Entities = (function () {
   };
   Debris.prototype.draw = function (ctx, cam) {
     var th = Tiles.THEMES[this.theme] || Tiles.THEMES.overworld;
+    var alpha = this.life < 15 ? this.life / 15 : 1;
     ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.translate(Math.round(this.x - cam + 4), Math.round(this.y + 4));
     ctx.rotate(this.spin);
     ctx.fillStyle = th.brick;
@@ -402,6 +404,30 @@ var Entities = (function () {
     ctx.fillRect(-4, -4, 8, 2);
     ctx.fillStyle = th.brickLo;
     ctx.fillRect(-4, 2, 8, 2);
+    ctx.restore();
+  };
+
+  /** 星星粒子效果 */
+  function StarParticle(x, y, vx, vy) {
+    Entity.call(this, x, y, 3, 3);
+    this.type = 'fx'; this.harmless = true;
+    this.vx = vx; this.vy = vy; this.life = 30;
+    this.color = ['#fcd800', '#fcfcfc', '#58d8ff'][Math.floor(Math.random() * 3)];
+  }
+  StarParticle.prototype = Object.create(Entity.prototype);
+  StarParticle.prototype.update = function () {
+    this.x += this.vx; this.y += this.vy;
+    this.vy += 0.15;
+    if (--this.life <= 0) this.remove = true;
+  };
+  StarParticle.prototype.draw = function (ctx, cam) {
+    var alpha = this.life / 30;
+    if (alpha < 0.1) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = this.color;
+    var size = 2 + Math.floor(this.life / 10);
+    ctx.fillRect(Math.round(this.x - cam), Math.round(this.y), size, size);
     ctx.restore();
   };
 
@@ -610,6 +636,7 @@ var Entities = (function () {
     Mushroom: Mushroom, Comet: Comet, Flower: Flower, Fireball: Fireball,
     Piranha: Piranha, Bowser: Bowser, BowserFire: BowserFire,
     Puff: Puff, CoinPop: CoinPop, ScorePop: ScorePop, Debris: Debris,
+    StarParticle: StarParticle,
     GRAVITY: GRAVITY
   };
 })();
