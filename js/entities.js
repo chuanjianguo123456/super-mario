@@ -1,10 +1,10 @@
 /* 实体：敌人、道具、火球、特效 */
 var Entities = (function () {
   var T = 16;
-  var GRAVITY = 0.45;
-  var ENEMY_SPEED = 0.55;
-  var SHELL_SPEED = 3.2;
-  var ITEM_SPEED = 0.8;
+  var GRAVITY = 0.48;
+  var ENEMY_SPEED = 0.58;
+  var SHELL_SPEED = 3.3;
+  var ITEM_SPEED = 0.85;
 
   /* ---------- 基类 ---------- */
   function Entity(x, y, w, h) {
@@ -362,15 +362,18 @@ var Entities = (function () {
   function ScorePop(x, y, text) {
     Entity.call(this, x, y, 8, 8);
     this.type = 'fx'; this.harmless = true;
-    this.text = text; this.life = 44;
+    this.text = text; this.life = 50;
   }
   ScorePop.prototype = Object.create(Entity.prototype);
   ScorePop.prototype.update = function () {
-    this.y -= 0.8;
+    this.y -= 0.7;
     if (--this.life <= 0) this.remove = true;
   };
   ScorePop.prototype.draw = function (ctx, cam) {
-    Font.draw(ctx, this.text, Math.round(this.x - cam), Math.round(this.y), '#fcfcfc', 1);
+    var alpha = this.life < 10 ? this.life / 10 : 1;
+    if (alpha < 0.3) return;
+    var color = this.text === '1UP' ? '#32d800' : '#fcfcfc';
+    Font.draw(ctx, this.text, Math.round(this.x - cam), Math.round(this.y), color, 1);
   };
 
   /** 砖块碎片 */
@@ -480,8 +483,8 @@ var Entities = (function () {
     this.sx = -2; this.sy = 0;
     this.type = 'bowser';
     this.sprite = 'bowser';
-    this.vx = -0.8;
-    this.hp = 5;               // 5 发火球或触碰斧头即死
+    this.vx = -0.9;
+    this.hp = 6;               // 6 发火球或触碰斧头即死
     this.jumpTimer = 0;
     this.fireTimer = 0;
     this.hurtTimer = 0;
@@ -507,8 +510,8 @@ var Entities = (function () {
     if (World.moveX(g.level, this)) this.vx = -beforeMove;
 
     // 周期性跳跃
-    if (this.jumpTimer > 90 && this.vy === 0) {
-      this.vy = -5.5;
+    if (this.jumpTimer > 85 && this.vy === 0) {
+      this.vy = -6.0;
       this.jumpTimer = 0;
     }
 
@@ -517,7 +520,7 @@ var Entities = (function () {
     if (r.ground && this.vy > 0) this.vy = 0;
 
     // 周期性喷火
-    if (this.fireTimer > 120) {
+    if (this.fireTimer > 110) {
       this.fireTimer = 0;
       var fx = this.vx < 0 ? this.x - 8 : this.x + this.w;
       g.spawn(new BowserFire(fx, this.y + 16, this.vx < 0 ? -1 : 1));
@@ -530,14 +533,18 @@ var Entities = (function () {
 
   Bowser.prototype.hit = function (g) {
     if (this.dead || this.hurtTimer > 0) return false;
-    this.hurtTimer = 18;
+    this.hurtTimer = 20;
     this.hp--;
     g.spawn(new Puff(this.x + this.w / 2 - 8, this.y + this.h / 2 - 8));
+    Sound.sfx.kick();
     if (this.hp <= 0) {
       this.flipOut();
       g.addScore(5000, this.x, this.y);
+      return true;
     }
-    Sound.sfx.kick();
+    // 受伤后短暂加速
+    var dir = this.vx < 0 ? -1 : 1;
+    this.vx = dir * Math.min(Math.abs(this.vx) + 0.15, 1.4);
     return true;
   };
 

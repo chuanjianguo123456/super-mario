@@ -4,6 +4,9 @@
   var soundButton = document.getElementById('sound-app');
   var fullscreenButton = document.getElementById('fullscreen-app');
   var deferredInstall = null;
+  var isDesktop = !!(window.desktop && window.desktop.isDesktop);
+  var desktopBridge = isDesktop ? window.desktop : null;
+  var desktopFullscreen = false;
 
   function syncSoundButton() {
     if (!soundButton || !window.Sound) return;
@@ -14,6 +17,7 @@
   }
 
   function isFullscreen() {
+    if (desktopBridge) return desktopFullscreen;
     return !!(document.fullscreenElement || document.webkitFullscreenElement);
   }
 
@@ -25,8 +29,25 @@
     fullscreenButton.title = active ? '退出全屏' : '进入全屏';
   }
 
+  function setDesktopFullscreen(active) {
+    if (typeof active !== 'boolean') return;
+    desktopFullscreen = active;
+    syncFullscreenButton();
+  }
+
+  if (isDesktop && installButton) installButton.hidden = true;
+
+  if (desktopBridge && typeof desktopBridge.onFullscreenChange === 'function') {
+    desktopBridge.onFullscreenChange(setDesktopFullscreen);
+  }
+
   window.addEventListener('beforeinstallprompt', function (event) {
     event.preventDefault();
+    if (desktopBridge) {
+      deferredInstall = null;
+      if (installButton) installButton.hidden = true;
+      return;
+    }
     deferredInstall = event;
     if (installButton) installButton.hidden = false;
   });
@@ -56,6 +77,13 @@
 
   if (fullscreenButton) {
     fullscreenButton.addEventListener('click', function () {
+      if (desktopBridge && typeof desktopBridge.toggleFullscreen === 'function') {
+        Promise.resolve(desktopBridge.toggleFullscreen())
+          .then(setDesktopFullscreen)
+          .catch(function () {});
+        return;
+      }
+
       var root = document.documentElement;
       if (isFullscreen()) {
         var exit = document.exitFullscreen || document.webkitExitFullscreen;
@@ -66,17 +94,22 @@
       }
     });
   }
-  document.addEventListener('fullscreenchange', syncFullscreenButton);
-  document.addEventListener('webkitfullscreenchange', syncFullscreenButton);
+  if (!desktopBridge) {
+    document.addEventListener('fullscreenchange', syncFullscreenButton);
+    document.addEventListener('webkitfullscreenchange', syncFullscreenButton);
+  }
   document.addEventListener('visibilitychange', function () {
     if (document.hidden && window.Game && Game.setPaused) Game.setPaused(true);
+  });
+
+  window.addEventListener('load', function () {
+    syncSoundButton();
+    syncFullscreenButton();
   });
 
   if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
 
   window.addEventListener('load', function () {
-    syncSoundButton();
-    syncFullscreenButton();
     navigator.serviceWorker.register('sw.js').catch(function (err) {
       console.warn('Service worker registration failed:', err);
     });

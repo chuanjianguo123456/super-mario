@@ -6,11 +6,11 @@ var Game = (function () {
 
   // 玩家物理参数
   var P = {
-    walkAccel: 0.14, runAccel: 0.2, friction: 0.14,
-    maxWalk: 1.55, maxRun: 2.6, turnAccel: 0.35,
-    jumpVel: -5.6, jumpVelRun: -6.1,
-    gravity: 0.5, gravityHold: 0.18, maxFall: 7.5,
-    stompBounce: -3.6, stompBounceHold: -4.6
+    walkAccel: 0.15, runAccel: 0.22, friction: 0.15,
+    maxWalk: 1.65, maxRun: 2.75, turnAccel: 0.38,
+    jumpVel: -5.8, jumpVelRun: -6.3,
+    gravity: 0.48, gravityHold: 0.16, maxFall: 7.8,
+    stompBounce: -3.8, stompBounceHold: -4.8
   };
   var COYOTE_FRAMES = 5;
   var JUMP_BUFFER_FRAMES = 6;
@@ -140,7 +140,11 @@ var Game = (function () {
     coins++;
     score += 200;
     Sound.sfx.coin();
-    if (coins >= 100) { coins -= 100; oneUp(); }
+    if (coins >= 100) {
+      coins -= 100;
+      oneUp();
+      ents.push(new Entities.ScorePop(player.x, player.y - 16, '1UP'));
+    }
   }
 
   function oneUp() {
@@ -602,7 +606,7 @@ var Game = (function () {
     player.vx = 0; player.vy = 0;
     player.face = -1;
     Sound.sfx.flag();
-    addScore(bonus, player.x, player.y - 12);
+    if (bonus > 0) addScore(bonus, player.x, player.y - 12);
   }
 
   function startBossClear() {
@@ -859,6 +863,11 @@ var Game = (function () {
       [-10, -4], [-6, -11], [2, -13], [9, -8],
       [12, 1], [7, 10], [-2, 12], [-10, 7]
     ];
+
+    // 彗星能量即将结束时闪烁更快
+    var lowTime = player.cometTimer <= 180;
+    if (lowTime && Math.floor(frame / 3) % 2 === 0) return;
+
     for (var i = 0; i < particles.length; i++) {
       var p = particles[(i + pulse) % particles.length];
       ctx.fillStyle = i % 2 === 0 ? '#58d8ff' : '#fcd800';
@@ -904,10 +913,13 @@ var Game = (function () {
     Font.drawShadow(ctx, '*' + pad(lives, 2), 162, 17, c, 1);
 
     Font.drawShadow(ctx, 'TIME', 208, 8, c, 1);
-    Font.drawShadow(ctx, pad(Math.max(0, timeLeft), 3), 212, 17, timeLeft <= 100 && blink ? '#f87858' : c, 1);
+    var timeColor = timeLeft <= 100 && blink ? '#f87858' : (timeLeft <= 50 ? '#fcd800' : c);
+    Font.drawShadow(ctx, pad(Math.max(0, timeLeft), 3), 212, 17, timeColor, 1);
 
     if (player.cometTimer > 0) {
-      Font.drawShadow(ctx, 'COMET ' + Math.ceil(player.cometTimer / 60) + 'S', 8, 28, '#58d8ff', 1);
+      var cometSec = Math.ceil(player.cometTimer / 60);
+      var cometColor = cometSec <= 3 ? (blink ? '#fcd800' : '#58d8ff') : '#58d8ff';
+      Font.drawShadow(ctx, 'COMET ' + cometSec + 'S', 8, 28, cometColor, 1);
     }
   }
 
@@ -923,18 +935,21 @@ var Game = (function () {
     if (!boss) return;
 
     var x = 82, y = 35, w = 84, h = 7;
-    Font.drawShadow(ctx, 'BOWSER', 82, 26, '#fcfcfc', 1);
+    var blink = Math.floor(frame / 6) % 2 === 0;
+    var nameColor = boss.hurtTimer > 0 && blink ? '#fcd800' : '#fcfcfc';
+    Font.drawShadow(ctx, 'BOWSER', 82, 26, nameColor, 1);
     ctx.fillStyle = '#000000';
     ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
     ctx.fillStyle = '#5a5a5a';
     ctx.fillRect(x, y, w, h);
 
-    var hp = Math.max(0, Math.min(5, boss.hp));
-    var fill = Math.round(w * hp / 5);
-    ctx.fillStyle = hp <= 1 ? '#d82800' : '#f87800';
+    var hp = Math.max(0, Math.min(6, boss.hp));
+    var fill = Math.round(w * hp / 6);
+    var hpColor = hp <= 2 ? '#d82800' : (hp <= 4 ? '#f87800' : '#32d800');
+    ctx.fillStyle = hpColor;
     ctx.fillRect(x, y, fill, h);
     ctx.fillStyle = '#fcd800';
-    for (var notch = 1; notch < 5; notch++) ctx.fillRect(x + Math.round(w * notch / 5) - 1, y, 2, h);
+    for (var notch = 1; notch < 6; notch++) ctx.fillRect(x + Math.round(w * notch / 6) - 1, y, 2, h);
   }
 
   /* ---------- 渲染：覆盖层 ---------- */
@@ -952,14 +967,17 @@ var Game = (function () {
     Tiles.bush(ctx, 110, 196, 48, 'overworld');
     for (var x = 0; x < VW; x += T) { Tiles.draw(ctx, 'X', x, 208, 'overworld'); Tiles.draw(ctx, 'X', x, 224, 'overworld'); }
 
-    Font.drawCentered(ctx, 'SUPER', 128, 44, '#fcfcfc', 4);
-    Font.drawCentered(ctx, 'MARIO', 128, 76, '#d82800', 4);
+    var titlePulse = Math.sin(frame * 0.08) * 2;
+    Font.drawCentered(ctx, 'SUPER', 128, 44 + titlePulse, '#fcfcfc', 4);
+    Font.drawCentered(ctx, 'MARIO', 128, 76 + titlePulse, '#d82800', 4);
     Font.drawCentered(ctx, 'TOP-' + pad(highScore, 6), 128, 112, '#fcd800', 1);
     Font.drawCentered(ctx, 'WORLDS CLEAR ' + worldsCleared + '/' + Levels.count, 128, 122, '#fcfcfc', 1);
 
     Sprites.draw(ctx, 'mario_big_idle', 40, 176, false, null);
     Sprites.draw(ctx, 'goomba', 200, 192, false, null);
-    Sprites.draw(ctx, 'coin_a', 168, 176, false, null);
+    var coinFrame = Math.floor(frame / 6) % 4;
+    var coinSprite = coinFrame === 0 ? 'coin_a' : (coinFrame === 1 ? 'coin_b' : (coinFrame === 2 ? 'coin_c' : 'coin_b'));
+    Sprites.draw(ctx, coinSprite, 168, 176, false, null);
 
     if (Math.floor(frame / 20) % 2 === 0) {
       var startText = worldsCleared > 0 ? 'ENTER-NEW RUN C-CONTINUE' : 'PRESS ENTER OR JUMP';
@@ -1026,8 +1044,10 @@ var Game = (function () {
     drawHUD();
     drawBossHUD();
 
-    if (clear && clear.phase === 'done')
-      Font.drawCentered(ctx, 'COURSE CLEAR!', 128, 104, '#fcfcfc', 2);
+    if (clear && clear.phase === 'done') {
+      var clearPulse = Math.sin(frame * 0.15) * 3;
+      Font.drawCentered(ctx, 'COURSE CLEAR!', 128, 104 + clearPulse, '#fcd800', 2);
+    }
     if (paused) {
       dim(0.55);
       Font.drawCentered(ctx, 'PAUSE', 128, 104, '#fcfcfc', 3);

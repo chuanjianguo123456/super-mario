@@ -1,0 +1,67 @@
+{
+  "name": "super-mario",
+  "version": "1.0.1",
+  "description": "A standalone pixel platform adventure.",
+  "main": "desktop/main.cjs",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node _test.js",
+    "dist:win": "electron-builder --win",
+    "dist:portable": "node desktop/build-portable.cjs"
+  },
+  "devDependencies": {
+    "electron": "^37.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.chuanjianguo.supermario",
+    "productName": "超级马里奥",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "index.html",
+      "app.js",
+      "sw.js",
+      "manifest.webmanifest",
+      "desktop/**/*",
+      "js/**/*",
+      "assets/**/*",
+      "!release{,/**/*}",
+      "!.npm-cache{,/**/*}",
+      "!node_modules{,/**/*}",
+      "!_test.js",
+      "!_art.js",
+      "!_diag.js",
+      "!_jump.js",
+      "!_reach.js",
+      "!_trace.js"
+    ],
+    "win": {
+      "icon": "assets/app-icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName}-${version}-setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    }
+  }
+}

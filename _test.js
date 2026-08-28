@@ -9,6 +9,19 @@ const PWA_MANIFEST = JSON.parse(fs.readFileSync(path.join(DIR, 'manifest.webmani
 const PWA_APP = fs.readFileSync(path.join(DIR, 'app.js'), 'utf8');
 const PWA_WORKER = fs.readFileSync(path.join(DIR, 'sw.js'), 'utf8');
 const GAME_SOURCE = fs.readFileSync(path.join(DIR, 'js', 'game.js'), 'utf8');
+const PACKAGE_PATH = path.join(DIR, 'package.json');
+const DESKTOP_MAIN_PATH = path.join(DIR, 'desktop', 'main.cjs');
+const DESKTOP_PRELOAD_PATH = path.join(DIR, 'desktop', 'preload.cjs');
+const DESKTOP_PORTABLE_BUILD_PATH = path.join(DIR, 'desktop', 'build-portable.cjs');
+const PACKAGE_SOURCE = fs.existsSync(PACKAGE_PATH) ? fs.readFileSync(PACKAGE_PATH, 'utf8') : '';
+const DESKTOP_MAIN_SOURCE = fs.existsSync(DESKTOP_MAIN_PATH) ? fs.readFileSync(DESKTOP_MAIN_PATH, 'utf8') : '';
+const DESKTOP_PRELOAD_SOURCE = fs.existsSync(DESKTOP_PRELOAD_PATH) ? fs.readFileSync(DESKTOP_PRELOAD_PATH, 'utf8') : '';
+let DESKTOP_PACKAGE = null;
+let DESKTOP_PACKAGE_ERROR = null;
+if (PACKAGE_SOURCE) {
+  try { DESKTOP_PACKAGE = JSON.parse(PACKAGE_SOURCE.replace(/^\uFEFF/, '')); }
+  catch (error) { DESKTOP_PACKAGE_ERROR = error; }
+}
 
 /* ---- DOM 桩 ---- */
 function ctxStub() {
@@ -82,6 +95,21 @@ function ok(cond, msg) {
   else { fails++; console.log('  ✗ ' + msg); }
 }
 function section(t) { console.log('\n== ' + t + ' =='); }
+function targetNames(target) {
+  const result = [];
+  const targets = Array.isArray(target) ? target : [target];
+  for (const entry of targets) {
+    if (typeof entry === 'string') result.push(entry.toLowerCase());
+    else if (entry && typeof entry === 'object') {
+      const nested = Array.isArray(entry.target) ? entry.target : [entry.target];
+      for (const name of nested) if (typeof name === 'string') result.push(name.toLowerCase());
+    }
+  }
+  return result;
+}
+function hasExposedMember(source, name) {
+  return new RegExp('\\b' + name + '\\s*(?::|\\()').test(source);
+}
 
 /* ---- 1. 静态资源 ---- */
 section('资源自检');
@@ -113,6 +141,62 @@ ok(/visibilitychange/.test(PWA_APP) && /Game\.setPaused\(true\)/.test(PWA_APP),
    '切换后台时未自动暂停游戏');
 ok(/requestFullscreen/.test(PWA_APP) && /fullscreenchange/.test(PWA_APP),
    '应用缺少全屏切换支持');
+
+/* ---- 桌面打包静态契约：不需要安装 Electron 即可验证 ---- */
+section('桌面打包静态自检');
+ok(fs.existsSync(PACKAGE_PATH), '缺少 package.json，无法验证桌面打包配置');
+ok(fs.existsSync(DESKTOP_MAIN_PATH), '缺少 desktop/main.cjs，无法验证主进程安全配置');
+ok(fs.existsSync(DESKTOP_PRELOAD_PATH), '缺少 desktop/preload.cjs，无法验证预加载桥接');
+ok(fs.existsSync(DESKTOP_PORTABLE_BUILD_PATH), '缺少 desktop/build-portable.cjs，无法生成便携 Windows 版');
+ok(!DESKTOP_PACKAGE_ERROR, 'package.json 不是合法 JSON: ' +
+   (DESKTOP_PACKAGE_ERROR && DESKTOP_PACKAGE_ERROR.message));
+ok(DESKTOP_PACKAGE && DESKTOP_PACKAGE.main === 'desktop/main.cjs',
+   'package main 必须指向 desktop/main.cjs');
+
+const desktopScripts = DESKTOP_PACKAGE && DESKTOP_PACKAGE.scripts || {};
+const hasWindowsBuildScript = Object.entries(desktopScripts).some(([name, command]) =>
+  /electron-builder/i.test(String(command)) &&
+  (/(?:^|[:_-])win(?:$|[:_-])/i.test(name) || /(?:^|\s)--win(?:\s|$)/i.test(String(command)))
+);
+ok(hasWindowsBuildScript, '打包脚本缺少 Electron Windows 构建命令');
+ok(/build-portable\.cjs/.test(String(desktopScripts['dist:portable'] || '')),
+   '缺少不依赖在线 NSIS 工具的便携 Windows 构建脚本');
+
+const desktopDevDependencies = DESKTOP_PACKAGE && DESKTOP_PACKAGE.devDependencies || {};
+ok(typeof desktopDevDependencies.electron === 'string' &&
+   typeof desktopDevDependencies['electron-builder'] === 'string',
+   'electron 与 electron-builder 必须声明在 devDependencies');
+
+const desktopBuild = DESKTOP_PACKAGE && DESKTOP_PACKAGE.build || {};
+const desktopWin = desktopBuild.win || {};
+const windowsTargets = targetNames(desktopWin.target);
+ok(windowsTargets.includes('nsis') && windowsTargets.includes('portable'),
+   'Windows 构建目标必须同时包含 nsis 和 portable');
+ok((desktopWin.icon || desktopBuild.icon) === 'assets/app-icon.ico',
+   'Windows 图标必须是 assets/app-icon.ico');
+ok(desktopBuild.directories && desktopBuild.directories.output === 'release',
+   'Electron 构建输出目录必须是 release');
+
+ok(/contextIsolation\s*:\s*true/.test(DESKTOP_MAIN_SOURCE) &&
+   /sandbox\s*:\s*true/.test(DESKTOP_MAIN_SOURCE) &&
+   /nodeIntegration\s*:\s*false/.test(DESKTOP_MAIN_SOURCE),
+   '主进程必须启用 contextIsolation、sandbox 并禁用 nodeIntegration');
+ok(/contextBridge\s*\.\s*exposeInMainWorld\s*\(\s*['"]desktop['"]/.test(DESKTOP_PRELOAD_SOURCE) &&
+   hasExposedMember(DESKTOP_PRELOAD_SOURCE, 'isDesktop') &&
+   hasExposedMember(DESKTOP_PRELOAD_SOURCE, 'toggleFullscreen') &&
+   hasExposedMember(DESKTOP_PRELOAD_SOURCE, 'onFullscreenChange'),
+   'preload 必须通过 contextBridge 暴露 isDesktop、toggleFullscreen、onFullscreenChange');
+
+ok(/<script\s+src=["']app\.js["']\s*><\/script>/.test(INDEX_HTML),
+   'index.html 未加载 app.js，桌面桥接逻辑不会执行');
+const appUsesDesktop = /(?:window\.)?desktop\b/.test(PWA_APP) && /\bisDesktop\b/.test(PWA_APP);
+const desktopHidesInstall = /if\s*\(\s*(?:(?:window\.)?desktop(?:Bridge)?|isDesktop)[^)]*\)[\s\S]{0,180}installButton\s*\.\s*hidden\s*=\s*true/.test(PWA_APP);
+ok(appUsesDesktop && desktopHidesInstall,
+   'app.js 必须在 desktop 环境隐藏 PWA 安装按钮');
+ok(appUsesDesktop && /(?:window\.)?desktop(?:Bridge)?\s*\.\s*toggleFullscreen\s*\(/.test(PWA_APP),
+   'app.js 必须调用 desktop.toggleFullscreen');
+ok(/requestFullscreen/.test(PWA_APP),
+   'app.js 必须保留浏览器 requestFullscreen 回退');
 
 /* ---- 2. 关卡几何 ---- */
 section('关卡几何');
