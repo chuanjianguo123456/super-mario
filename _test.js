@@ -131,7 +131,7 @@ ok(['assets/app-icon-192.png', 'assets/app-icon-512.png', 'assets/app-icon.svg']
 ok(/serviceWorker\.register\('sw\.js'\)/.test(PWA_APP), '页面未注册离线服务工作线程');
 ok(['./index.html', './js/game.js', './assets/app-icon-192.png', './assets/app-icon-512.png'].every(p => PWA_WORKER.includes(p)),
    '离线缓存清单不完整');
-ok(/CACHE_NAME = 'super-mario-v6'/.test(PWA_WORKER), '离线缓存版本未升级到 v6');
+ok(/CACHE_NAME = 'super-mario-v7'/.test(PWA_WORKER), '离线缓存版本未升级到 v7');
 ok(/beforeinstallprompt/.test(PWA_APP) && /id="install-app"/.test(INDEX_HTML),
    'PWA 缺少原生安装入口');
 ok(/mario_sound/.test(GAME_SOURCE), '声音偏好未接入本地存储');
@@ -236,6 +236,13 @@ for (let i = 0; i < Levels.count; i++) {
   ok(coinCount > 0, tag + ' 没有金币');
   ok(L.enemies.length > 0, tag + ' 没有敌人');
   if (i === 0) ok(cometBlockCount > 0, tag + ' 缺少早期可获得的彗星块');
+  ok(!!L.checkpoint, tag + ' 缺少检查点');
+  if (L.checkpoint) {
+    const cpx = Math.floor(L.checkpoint.x / 16);
+    const cpy = Math.floor(L.checkpoint.baseY / 16);
+    ok(cpx > 0 && cpx < L.width && World.isSolid(L.tiles[cpy][cpx]),
+       tag + ' 检查点下方没有可站立地面');
+  }
 }
 
 /* ---- 3. 启动与循环 ---- */
@@ -893,6 +900,8 @@ function flagRewardAt(fraction, timer) {
   p.y = Math.round(Game.level.flagTopY + (poleBottom - Game.level.flagTopY) * fraction);
   p.vx = 0; p.vy = 0; p.onGround = p.y >= poleBottom;
   p.invuln = 0; p.growTimer = 0; p.cometTimer = timer || 0;
+  // 该测试只测量旗杆奖励，避免直接放到终点时顺路触发检查点奖励。
+  if (Game.level.checkpoint) Game.level.checkpoint.x = Number.POSITIVE_INFINITY;
   const flagScore0 = Game.score;
   setKeys(['ArrowRight']);
   Game.step();
@@ -906,7 +915,55 @@ ok(flagRewards.join(',') === '5000,2000,800,400,100',
 const cometFlagClear = flagRewardAt(0.5, 480);
 ok(!!cometFlagClear.clear && cometFlagClear.timer === 0, '旗杆通关未清除彗星状态');
 
-/* ---- 14. 存档与触屏重开 ---- */
+/* ---- 14. 检查点与死亡重生 ---- */
+section('检查点');
+
+function enterLevel(index) {
+  setKeys([]);
+  Game.startGame(index);
+  let guard = 0;
+  while (Game.state !== 'playing' && guard++ < 180) Game.step();
+  return Game.state === 'playing';
+}
+
+ok(enterLevel(0), '无法启动检查点测试关卡');
+Game.ents.length = 0;
+const checkpoint = Game.level.checkpoint;
+const checkpointScore0 = Game.score;
+p.x = checkpoint.x - 24;
+p.y = checkpoint.baseY - p.h;
+p.vx = 0; p.vy = 0; p.onGround = true;
+ok(!Game.checkpointReached, '新关卡不应预激活检查点');
+frames(30, ['ArrowRight']);
+ok(Game.checkpointReached, '越过检查点后未激活');
+ok(Game.score >= checkpointScore0 + 500, '激活检查点未奖励 500 分');
+
+// 死亡后从检查点重生，并从检查点继续本关。
+p.x = Game.level.checkpoint.x + 2;
+p.y = Game.level.pixelHeight + 32;
+p.vx = 0; p.vy = 0;
+Game.step();
+ok(Game.state === 'dying', '检查点后坠坑未进入死亡状态');
+let respawnGuard = 0;
+while (Game.state !== 'playing' && respawnGuard++ < 400) Game.step();
+ok(Game.state === 'playing', '检查点死亡后未回到可玩状态');
+ok(Game.checkpointReached, '死亡重生后检查点状态丢失');
+ok(Math.abs(p.x - (Game.level.checkpoint.x + 2)) < 1,
+   '死亡重生没有回到检查点: x=' + p.x.toFixed(1));
+
+// R 仍代表从头重开当前关卡，并清除本关检查点。
+tap('KeyR'); Game.step(); release('KeyR');
+ok(Game.state === 'levelstart', '按 R 未回到关卡开始画面');
+respawnGuard = 0;
+while (Game.state !== 'playing' && respawnGuard++ < 180) Game.step();
+ok(!Game.checkpointReached, '按 R 后检查点未清除');
+ok(Math.abs(p.x - Game.level.spawn.x) < 1,
+   '按 R 没有回到本关起点: x=' + p.x.toFixed(1));
+let checkpointRenderErr = null;
+try { Game.render(); } catch (e) { checkpointRenderErr = e; }
+ok(!checkpointRenderErr, '检查点渲染抛异常: ' + (checkpointRenderErr && checkpointRenderErr.message));
+
+/* ---- 15. 存档与触屏重开 ---- */
 section('存档与重开');
 ok(Game.worldsCleared === Levels.count, '全通后未记录全部世界: ' + Game.worldsCleared);
 ok(sandbox.localStorage.getItem('mario_cleared') === String(Levels.count),
@@ -924,7 +981,7 @@ press('KeyZ'); Game.step(); release('KeyZ');
 ok(Game.state === 'levelstart', '结束画面按跳跃未开始新局: ' + Game.state);
 ok(Game.level.name === '1-1', '新局未从第一关开始: ' + Game.level.name);
 
-/* ---- 15. 渲染不报错 ---- */
+/* ---- 16. 渲染不报错 ---- */
 section('渲染');
 let renderErr = null;
 try {

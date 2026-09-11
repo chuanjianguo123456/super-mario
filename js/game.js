@@ -35,6 +35,7 @@ var Game = (function () {
   var timeLeft = 400, timeAcc = 0;
   var clear = null;
   var pipeTransition = null;
+  var checkpointReached = false;
 
   var player = {
     x: 0, y: 0, w: 12, h: 15, vx: 0, vy: 0,
@@ -91,7 +92,7 @@ var Game = (function () {
   }
 
   /* ---------- 关卡装载 ---------- */
-  function loadLevel(idx, keepStats) {
+  function loadLevel(idx, keepStats, useCheckpoint) {
     levelIndex = idx;
     level = Levels.build(idx);
     ents = [];
@@ -100,6 +101,7 @@ var Game = (function () {
     timeLeft = level.time; timeAcc = 0;
     clear = null;
     pipeTransition = null;
+    checkpointReached = !!(useCheckpoint && level.checkpoint);
 
     for (var i = 0; i < level.enemies.length; i++) {
       var e = level.enemies[i];
@@ -114,11 +116,12 @@ var Game = (function () {
 
     var pw = player.power;
     var cometTimer = player.cometTimer;
-    player.x = level.spawn.x;
+    var spawn = checkpointReached ? level.checkpoint : level.spawn;
+    player.x = spawn.x + (checkpointReached ? 2 : 0);
     player.w = 12;
     player.h = keepStats && pw > 0 ? 30 : 15;
     if (!keepStats) player.power = 0;
-    player.y = level.spawn.y - player.h;
+    player.y = spawn.y - player.h;
     player.vx = 0; player.vy = 0;
     player.face = 1; player.onGround = false; player.jumping = false;
     player.walkAnim = 0; player.skid = false;
@@ -128,6 +131,7 @@ var Game = (function () {
     player.coyoteTimer = 0; player.jumpBufferTimer = 0;
     player.cometTimer = keepStats ? cometTimer : 0;
     player.cometBossTarget = null;
+    if (checkpointReached) player.invuln = 90;
   }
 
   function spawn(e) { ents.push(e); }
@@ -336,7 +340,7 @@ var Game = (function () {
     var to = pipeTransition.to;
     var power = player.power;
     var cometTimer = player.cometTimer;
-    loadLevel(to.level, true);
+    loadLevel(to.level, true, false);
     player.power = power;
     player.h = power > 0 ? 30 : 15;
     player.cometTimer = cometTimer;
@@ -364,6 +368,15 @@ var Game = (function () {
     if (player.cometTimer <= 0) return;
     player.cometTimer--;
     if (player.cometTimer === 0) player.cometBossTarget = null;
+  }
+
+  function activateCheckpoint() {
+    if (checkpointReached || !level.checkpoint) return;
+    if (player.x + player.w < level.checkpoint.x + 8) return;
+    checkpointReached = true;
+    player.invuln = Math.max(player.invuln, 30);
+    addScore(500, level.checkpoint.x, level.checkpoint.baseY - 52);
+    Sound.sfx.powerup();
   }
 
   function updatePlayer() {
@@ -443,7 +456,8 @@ var Game = (function () {
       }
     }
 
-    // 到旗杆
+    // 检查点与终点
+    activateCheckpoint();
     if (level.flagX != null && !clear && player.x + player.w >= level.flagX + 6) startClear();
     if (level.axeX != null && !clear && World.overlaps(player, {
       x: level.axeX, y: level.flagBaseY - 20, w: 16, h: 20
@@ -725,7 +739,7 @@ var Game = (function () {
       return;
     }
     player.cometTimer = 0;
-    loadLevel(levelIndex + 1, true);
+    loadLevel(levelIndex + 1, true, false);
     state = 'levelstart'; stateTimer = 0;
     Sound.stopMusic();
   }
@@ -831,6 +845,24 @@ var Game = (function () {
         Tiles.draw(ctx, visualTile(ch), px, py + bumpOffset(tx, ty), level.theme, qf);
       }
     }
+  }
+
+  function drawCheckpoint() {
+    var cp = level.checkpoint;
+    if (!cp) return;
+    var x = Math.round(cp.x - cam + 8);
+    if (x < -24 || x > VW + 24) return;
+    var y = cp.baseY;
+    var pulse = checkpointReached && Math.floor(frame / 8) % 2 === 0;
+
+    ctx.fillStyle = checkpointReached ? (pulse ? '#fcd800' : '#58d8ff') : '#8a8a8a';
+    ctx.fillRect(x - 2, y - 40, 3, 40);
+    ctx.fillStyle = checkpointReached ? (pulse ? '#58d8ff' : '#fcd800') : '#5a5a5a';
+    ctx.fillRect(x + 1, y - 39, 12, 9);
+    ctx.fillStyle = '#fcfcfc';
+    ctx.fillRect(x + 5, y - 36, 3, 3);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(x - 3, y - 2, 5, 2);
   }
 
   /* ---------- 调试渲染 ---------- */
@@ -1133,6 +1165,7 @@ var Game = (function () {
 
     drawBackground();
     drawTiles();
+    drawCheckpoint();
 
     // 特效在后，敌人在前
     var i, e;
@@ -1168,7 +1201,7 @@ var Game = (function () {
     score = 0; coins = 0; lives = 3;
     player.power = 0; player.cometTimer = 0;
     Sound.setSpeed(1);
-    loadLevel(startAt || 0, false);
+    loadLevel(startAt || 0, false, false);
     state = 'levelstart'; stateTimer = 0;
   }
 
@@ -1182,7 +1215,7 @@ var Game = (function () {
     }
     player.power = 0; player.cometTimer = 0;
     Sound.setSpeed(1);
-    loadLevel(levelIndex, false);
+    loadLevel(levelIndex, false, checkpointReached);
     state = 'levelstart'; stateTimer = 0;
   }
 
@@ -1268,7 +1301,7 @@ var Game = (function () {
     }
     if (Input.justPressed('reset')) {
       Sound.setSpeed(1);
-      loadLevel(levelIndex, false);
+      loadLevel(levelIndex, false, false);
       state = 'levelstart'; stateTimer = 0;
       paused = false;
       return;
@@ -1318,7 +1351,7 @@ var Game = (function () {
 
     loadSave();
     Input.setFirstInputHook(function () { Sound.init(); Sound.resume(); });
-    loadLevel(0, false);
+    loadLevel(0, false, false);
     state = 'title'; stateTimer = 0;
     last = performance.now();
     requestAnimationFrame(loop);
@@ -1338,6 +1371,7 @@ var Game = (function () {
     get worldsCleared() { return worldsCleared; },
     get clear() { return clear; },
     get pipeTransition() { return pipeTransition; },
+    get checkpointReached() { return checkpointReached; },
     setPaused: setPaused,
     toggleSound: toggleSound,
     get paused() { return paused; },

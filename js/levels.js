@@ -9,6 +9,7 @@ var Levels = (function () {
     {
       name: '1-1', theme: 'overworld', time: 400, width: 212,
       spawn: [3, 10], sceneryBase: 13, scenery: true,
+      checkpoint: [92, 13],
       flag: 198, castle: 202,
       ops: [
         { rect: [0, 13, 69, 2, 'X'] }, { rect: [71, 13, 15, 2, 'X'] },
@@ -62,6 +63,7 @@ var Levels = (function () {
     {
       name: '1-2', theme: 'underground', time: 400, width: 150,
       spawn: [3, 10], sceneryBase: 13, scenery: false,
+      checkpoint: [83, 13],
       flag: 145, castle: null,
       ops: [
         { rect: [0, 0, 150, 2, 'X'] },
@@ -120,6 +122,7 @@ var Levels = (function () {
     {
       name: '1-3', theme: 'sky', time: 300, width: 170,
       spawn: [3, 8], sceneryBase: 11, scenery: true,
+      checkpoint: [66, 12],
       flag: 162, castle: 166,
       ops: [
         { rect: [0, 11, 14, 4, 'X'] },
@@ -157,6 +160,7 @@ var Levels = (function () {
     {
       name: '1-4', theme: 'castle', time: 400, width: 200,
       spawn: [3, 10], sceneryBase: 13, scenery: false,
+      checkpoint: [89, 13],
       flag: null, castle: null,
       ops: [
         { rect: [0, 13, 30, 2, 'X'] },
@@ -327,6 +331,10 @@ var Levels = (function () {
       pixelWidth: W * 16, pixelHeight: H * 16,
       tiles: grid, tileStrings: tiles,
       spawn: { x: d.spawn[0] * 16, y: d.spawn[1] * 16 },
+      checkpoint: d.checkpoint == null ? null : {
+        x: d.checkpoint[0] * 16,
+        baseY: d.checkpoint[1] * 16
+      },
       enemies: enemies,
       decor: decor,
       flagX: d.flag == null ? null : d.flag * 16,
