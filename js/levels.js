@@ -1,12 +1,13 @@
 /* 关卡定义与构建器
    瓦片字符：' '空 X地面 B砖 b含币砖 ?金币块 M道具块 C彗星块 V(1UP)块 U已用 S硬块
-             L/R水管顶 l/r水管身 o金币 g板栗仔 k乌龟 */
+             L/R水管顶 l/r水管身 E弹簧台 o金币 g板栗仔 k乌龟 */
 var Levels = (function () {
   var H = 15; // 关卡高度（瓦片）
 
   var DEFS = [
     /* ---------------- 1-1 地面关 ---------------- */
     {
+      title: 'SUNLIT MEADOW', medals: [[35, 6], [82, 3], [169, 3]],
       name: '1-1', theme: 'overworld', time: 400, width: 212,
       spawn: [3, 10], sceneryBase: 13, scenery: true,
       checkpoint: [92, 13],
@@ -15,13 +16,19 @@ var Levels = (function () {
         { rect: [0, 13, 69, 2, 'X'] }, { rect: [71, 13, 15, 2, 'X'] },
         { rect: [89, 13, 64, 2, 'X'] }, { rect: [156, 13, 56, 2, 'X'] },
 
+        { row: [9, 9, 'BM?B'] }, { row: [11, 6, 'ooo'] },
         { row: [9, 16, '?'] },
         { row: [9, 20, 'BMC?'] },
+        // 第一条高路：从低管跃上花园台，再跳到高管；下方仍可通行。
         { row: [8, 32, 'ooo'] },
+        { rect: [32, 9, 3, 1, 'B'] }, { rect: [35, 7, 3, 1, 'B'] },
+        { row: [6, 36, 'oo'] },
         { pipe: [28, 2] }, { pipe: [38, 3] }, { pipe: [46, 4] }, { pipe: [57, 4] },
         { row: [8, 50, 'oo'] },
         { row: [5, 61, 'BbBB'] },
-        { row: [9, 77, 'B?bB'] },
+        // 坑边先给落脚台，金币弧线引导上层藏宝路线。
+        { rect: [72, 10, 3, 1, 'B'] }, { row: [9, 72, 'ooo'] },
+        { row: [9, 77, 'B?bB'] }, { rect: [77, 7, 2, 1, 'B'] },
         { row: [5, 80, 'BBBBBBBB'] },
         { row: [4, 81, 'oooooo'] },
         { row: [9, 91, 'BB'] },
@@ -37,6 +44,7 @@ var Levels = (function () {
         { row: [8, 145, 'ooooo'] },
         { row: [10, 153, 'ooo'] },
         { pipe: [163, 2] },
+        { rect: [166, 7, 2, 1, 'B'] },
         { row: [9, 168, 'B?B'] },
         { row: [5, 168, 'BVB'] },
         { row: [8, 175, 'oo'] },
@@ -61,6 +69,7 @@ var Levels = (function () {
 
     /* ---------------- 1-2 地下关 ---------------- */
     {
+      title: 'CRYSTAL HOLLOW', medals: [[22, 5], [68, 4], [105, 5]],
       name: '1-2', theme: 'underground', time: 400, width: 150,
       spawn: [3, 10], sceneryBase: 13, scenery: false,
       checkpoint: [83, 13],
@@ -70,6 +79,7 @@ var Levels = (function () {
         { rect: [0, 13, 88, 2, 'X'] }, { rect: [91, 13, 29, 2, 'X'] },
         { rect: [123, 13, 27, 2, 'X'] },
 
+        { row: [9, 6, 'M'] },
         { row: [11, 6, 'ooooo'] },
         { rect: [10, 9, 4, 1, 'B'] }, { row: [8, 10, 'oooo'] },
         { rect: [17, 2, 1, 4, 'X'] },
@@ -84,6 +94,8 @@ var Levels = (function () {
         { rect: [52, 11, 4, 2, 'S'] },
         { rect: [58, 9, 3, 1, 'B'] }, { row: [7, 58, 'ooo'] },
         { row: [11, 64, 'ooooo'] },
+        // 水晶厅上下双线：下路安全，上路金币与星币。
+        { rect: [63, 8, 2, 1, 'B'] },
         { rect: [66, 6, 6, 1, 'B'] },
         { rect: [70, 10, 2, 3, 'S'] },
         { row: [5, 67, 'oooo'] },
@@ -120,12 +132,14 @@ var Levels = (function () {
 
     /* ---------------- 1-3 空中关 ---------------- */
     {
+      title: 'CLOUD GARDENS', medals: [[27, 6], [86, 4], [128, 5]],
       name: '1-3', theme: 'sky', time: 300, width: 170,
       spawn: [3, 8], sceneryBase: 11, scenery: true,
       checkpoint: [66, 12],
       flag: 162, castle: 166,
       ops: [
         { rect: [0, 11, 14, 4, 'X'] },
+        { row: [8, 9, 'M'] }, { row: [8, 12, 'oo'] },
         { rect: [17, 10, 5, 1, 'S'] }, { row: [9, 18, 'ooo'] },
         { rect: [25, 8, 4, 1, 'S'] }, { row: [7, 26, 'oo'] },
         { rect: [33, 11, 6, 1, 'S'] }, { row: [10, 34, 'oooo'] },
@@ -142,13 +156,15 @@ var Levels = (function () {
         { rect: [117, 10, 5, 1, 'S'] }, { row: [9, 118, 'ooo'] },
         { rect: [126, 7, 4, 1, 'S'] }, { row: [6, 127, 'oo'] },
         { rect: [134, 10, 6, 1, 'S'] }, { row: [7, 135, 'o?oo'] },
+        // 红色弹簧块：站上去按跳，可选择更高的星币路线。
+        { row: [10, 18, 'E'] }, { row: [10, 57, 'E'] }, { row: [11, 98, 'E'] },
         { rect: [144, 11, 26, 4, 'X'] },
         { row: [10, 146, 'ooo'] },
         { stairsUp: [152, 5] },
 
         { en: ['k', 34, 10] }, { en: ['g', 36, 10] },
         { en: ['g', 58, 9] },
-        { en: ['k', 67, 11] }, { en: ['g', 70, 11] },
+        { en: ['k', 69, 11] }, { en: ['g', 71, 11] },
         { en: ['g', 99, 10] }, { en: ['k', 102, 10] },
         { en: ['g', 119, 9] },
         { en: ['g', 136, 9] }, { en: ['g', 138, 9] },
@@ -158,6 +174,7 @@ var Levels = (function () {
 
     /* ---------------- 1-4 城堡关 ---------------- */
     {
+      title: 'EMBER CITADEL', medals: [[37, 7], [92, 7], [159, 8]],
       name: '1-4', theme: 'castle', time: 400, width: 200,
       spawn: [3, 10], sceneryBase: 13, scenery: false,
       checkpoint: [89, 13],
@@ -191,6 +208,7 @@ var Levels = (function () {
         { row: [9, 105, 'BB'] },
         { rect: [112, 9, 5, 1, 'B'] },
         { row: [9, 128, '?M?'] },
+        { row: [9, 140, 'M'] },
         { stairsUp: [144, 4] },
         // 只有两格高的闸门，能跳过但不会把路线完全封死。
         { rect: [152, 11, 1, 2, 'X'] },
@@ -326,7 +344,8 @@ var Levels = (function () {
     for (var ty = 0; ty < H; ty++) tiles.push(grid[ty].join(''));
 
     return {
-      name: d.name, theme: d.theme, time: d.time,
+      name: d.name, title: d.title, theme: d.theme, time: d.time,
+      medals: d.medals.map(function (p, i) { return { id: i, x: p[0] * 16 + 2, y: p[1] * 16, w: 12, h: 14 }; }),
       width: W, height: H,
       pixelWidth: W * 16, pixelHeight: H * 16,
       tiles: grid, tileStrings: tiles,

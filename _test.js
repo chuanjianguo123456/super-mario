@@ -3,7 +3,7 @@ const fs = require('fs'), path = require('path'), vm = require('vm');
 
 const DIR = __dirname;
 const FILES = ['font.js', 'sprites.js', 'tiles.js', 'input.js', 'audio.js',
-               'levels.js', 'world.js', 'entities.js', 'game.js'];
+               'levels.js', 'world.js', 'entities.js', 'scenery.js', 'game.js'];
 const INDEX_HTML = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8');
 const PWA_MANIFEST = JSON.parse(fs.readFileSync(path.join(DIR, 'manifest.webmanifest'), 'utf8'));
 const PWA_APP = fs.readFileSync(path.join(DIR, 'app.js'), 'utf8');
@@ -131,7 +131,7 @@ ok(['assets/app-icon-192.png', 'assets/app-icon-512.png', 'assets/app-icon.svg']
 ok(/serviceWorker\.register\('sw\.js'\)/.test(PWA_APP), '页面未注册离线服务工作线程');
 ok(['./index.html', './js/game.js', './assets/app-icon-192.png', './assets/app-icon-512.png'].every(p => PWA_WORKER.includes(p)),
    '离线缓存清单不完整');
-ok(/CACHE_NAME = 'super-mario-v7'/.test(PWA_WORKER), '离线缓存版本未升级到 v7');
+ok(/CACHE_NAME = 'super-mario-v8'/.test(PWA_WORKER), '离线缓存版本未升级到 v8');
 ok(/beforeinstallprompt/.test(PWA_APP) && /id="install-app"/.test(INDEX_HTML),
    'PWA 缺少原生安装入口');
 ok(/mario_sound/.test(GAME_SOURCE), '声音偏好未接入本地存储');
@@ -981,7 +981,41 @@ press('KeyZ'); Game.step(); release('KeyZ');
 ok(Game.state === 'levelstart', '结束画面按跳跃未开始新局: ' + Game.state);
 ok(Game.level.name === '1-1', '新局未从第一关开始: ' + Game.level.name);
 
-/* ---- 16. 渲染不报错 ---- */
+/* ---- 16. 四关主题、星币与弹簧 ---- */
+section('关卡新玩法');
+for (let li = 0; li < Levels.count; li++) {
+  const L = Levels.build(li);
+  ok(typeof L.title === 'string' && L.title.length > 0, L.name + ' 缺少主题标题');
+  ok(L.medals.length === 3, L.name + ' 星币不是 3 枚');
+  for (const medal of L.medals) {
+    const tx = Math.floor(medal.x / 16), ty = Math.floor(medal.y / 16);
+    ok(World.tileAt(L, tx, ty) === ' ', L.name + ' 星币嵌入实心砖: ' + tx + ',' + ty);
+  }
+}
+setKeys([]); Game.startGame(2);
+while (Game.state !== 'playing') Game.step();
+Game.ents.length = 0;
+for (let i = 0; i < 3; i++) {
+  const m = Game.level.medals[i];
+  p.x = m.x; p.y = m.y; p.vx = 0; p.vy = 0;
+  Game.step();
+  ok((Game.medalMask & (1 << i)) !== 0, '星币 ' + i + ' 未能拾取');
+}
+ok(Game.medalMask === 7, '集齐星币后标记不正确');
+ok(Game.lives === 4, '集齐三枚星币未奖励生命');
+const medalScore = Game.score;
+for (let i = 0; i < 3; i++) {
+  const m = Game.level.medals[i];
+  p.x = m.x; p.y = m.y; p.vx = 0; p.vy = 0;
+  Game.step();
+}
+ok(Game.score === medalScore && Game.lives === 4, '星币可被重复刷分或刷命');
+setKeys([]); tap('KeyR'); Game.step(); release('KeyR');
+ok(Game.medalMask === 7, '重开当前关后已收集星币被重置并可刷命');
+const springLevel = Levels.build(2);
+ok(World.isSolid(World.tileAt(springLevel, 18, 10)) && World.tileAt(springLevel, 18, 10) === 'E', '弹簧台碰撞或瓦片丢失');
+
+/* ---- 17. 渲染不报错 ---- */
 section('渲染');
 let renderErr = null;
 try {

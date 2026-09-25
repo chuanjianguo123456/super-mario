@@ -36,6 +36,8 @@ var Game = (function () {
   var clear = null;
   var pipeTransition = null;
   var checkpointReached = false;
+  var runMedals = [0, 0, 0, 0], bestMedals = [0, 0, 0, 0];
+  var medalMessage = 0;
 
   var player = {
     x: 0, y: 0, w: 12, h: 15, vx: 0, vy: 0,
@@ -54,6 +56,9 @@ var Game = (function () {
       highScore = parseInt(localStorage.getItem('mario_high') || '0', 10) || 0;
       worldsCleared = Math.max(0, Math.min(Levels.count,
         parseInt(localStorage.getItem('mario_cleared') || '0', 10) || 0));
+      for (var mi = 0; mi < Levels.count; mi++) {
+        bestMedals[mi] = (parseInt(localStorage.getItem('mario_medals_' + mi), 10) || 0) & 7;
+      }
       if (localStorage.getItem('mario_sound') === '0' && Sound.isEnabled()) Sound.toggle();
     } catch (e) {
       highScore = 0;
@@ -66,6 +71,8 @@ var Game = (function () {
     try { localStorage.setItem('mario_high', String(highScore)); } catch (e) {}
   }
   function recordClear(idx) {
+    bestMedals[idx] = (bestMedals[idx] || 0) | (runMedals[idx] || 0);
+    try { localStorage.setItem('mario_medals_' + idx, String(bestMedals[idx])); } catch (e) {}
     var cleared = Math.min(Levels.count, idx + 1);
     if (cleared <= worldsCleared) return;
     worldsCleared = cleared;
@@ -102,6 +109,7 @@ var Game = (function () {
     clear = null;
     pipeTransition = null;
     checkpointReached = !!(useCheckpoint && level.checkpoint);
+    medalMessage = 0;
 
     for (var i = 0; i < level.enemies.length; i++) {
       var e = level.enemies[i];
@@ -356,7 +364,9 @@ var Game = (function () {
   }
 
   function beginJump() {
-    player.vy = Math.abs(player.vx) > 1.9 ? P.jumpVelRun : P.jumpVel;
+    var spring = player.onGround && World.tileAt(level,
+      Math.floor((player.x + player.w / 2) / T), Math.round((player.y + player.h) / T)) === 'E';
+    player.vy = spring ? -7.4 : (Math.abs(player.vx) > 1.9 ? P.jumpVelRun : P.jumpVel);
     player.jumping = true;
     player.onGround = false;
     player.coyoteTimer = 0;
@@ -777,19 +787,7 @@ var Game = (function () {
 
   /* ---------- 渲染：背景与瓦片 ---------- */
   function drawBackground() {
-    var th = Tiles.THEMES[level.theme] || Tiles.THEMES.overworld;
-    ctx.fillStyle = th.sky;
-    ctx.fillRect(0, 0, VW, VH);
-
-    var d = level.decor;
-    for (var i = 0; i < d.length; i++) {
-      var o = d[i];
-      var px = Math.round(o.k === 'cloud' ? o.x - cam * 0.5 : o.x - cam);
-      if (px > VW + 96 || px < -160) continue;
-      if (o.k === 'hill') Tiles.hill(ctx, px, o.y, o.w, o.h, level.theme);
-      else if (o.k === 'bush') Tiles.bush(ctx, px, o.y, o.w, level.theme);
-      else if (o.k === 'cloud') Tiles.cloud(ctx, px, o.y, o.w, level.theme);
-    }
+    Scenery.background(ctx, level, cam, frame);
 
     if (level.castleX != null) {
       var cxp = Math.round(level.castleX - cam);
@@ -816,6 +814,7 @@ var Game = (function () {
   }
 
   function visualTile(ch) {
+    if (ch === 'E') return 'S';
     if (ch === 'b') return 'B';
     if (ch === 'V') return '?';
     return ch;
@@ -844,6 +843,32 @@ var Game = (function () {
         if (ch === 'o') { Sprites.draw(ctx, cf, px, py, false, null); continue; }
         Tiles.draw(ctx, visualTile(ch), px, py + bumpOffset(tx, ty), level.theme, qf);
       }
+    }
+  }
+
+  function collectMedals() {
+    if (player.dead) return;
+    for (var i = 0; i < level.medals.length; i++) {
+      var medal = level.medals[i], bit = 1 << medal.id;
+      if ((runMedals[levelIndex] & bit) || !World.overlaps(player, medal)) continue;
+      runMedals[levelIndex] |= bit;
+      addScore(1000, medal.x, medal.y);
+      medalMessage = 120;
+      Sound.sfx.coin();
+      for (var j = 0; j < 8; j++) {
+        var a = j * Math.PI / 4;
+        spawn(new Entities.StarParticle(medal.x + 6, medal.y + 7, Math.cos(a) * 2, Math.sin(a) * 2 - 1));
+      }
+      // 收集进度属于本轮挑战，死亡和 R 重开均不重复发奖。
+      if (runMedals[levelIndex] === 7) oneUp();
+    }
+  }
+
+  function drawMedals() {
+    for (var i = 0; i < level.medals.length; i++) {
+      var medal = level.medals[i];
+      if (medal.x - cam < -20 || medal.x - cam > VW + 20) continue;
+      Scenery.medal(ctx, Math.round(medal.x - cam), medal.y, frame, runMedals[levelIndex] & (1 << medal.id));
     }
   }
 
@@ -1026,6 +1051,7 @@ var Game = (function () {
 
   function drawHUD() {
     var c = '#fcfcfc';
+    ctx.fillStyle = 'rgba(12,22,36,0.62)'; ctx.fillRect(0, 0, VW, 26);
     Font.drawShadow(ctx, 'MARIO', 8, 8, c, 1);
     Font.drawShadow(ctx, pad(score, 6), 8, 17, c, 1);
 
@@ -1043,6 +1069,14 @@ var Game = (function () {
     var timeColor = timeLeft <= 100 && blink ? '#f87858' : (timeLeft <= 50 ? '#fcd800' : c);
     Font.drawShadow(ctx, pad(Math.max(0, timeLeft), 3), 212, 17, timeColor, 1);
 
+    for (var si = 0; si < 3; si++) {
+      Scenery.star(ctx, 211 + si * 12, 29, (runMedals[levelIndex] & (1 << si)) ? '#ffe19a' : '#516273', 1);
+    }
+    if (medalMessage > 0) {
+      var message = runMedals[levelIndex] === 7 ? 'ALL STAR COINS! 1UP' : 'STAR COIN! +1000';
+      ctx.fillStyle = 'rgba(12,22,36,0.75)'; ctx.fillRect(60, 49, 136, 15);
+      Font.drawCentered(ctx, message, 128, 53, '#ffe19a', 1);
+    }
     if (player.cometTimer > 0) {
       var cometSec = Math.ceil(player.cometTimer / 60);
       var cometColor = cometSec <= 3 ? (blink ? '#fcd800' : '#58d8ff') : '#58d8ff';
@@ -1128,8 +1162,12 @@ var Game = (function () {
   function drawLevelStart() {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VW, VH);
     Font.drawCentered(ctx, 'WORLD ' + level.name, 128, 96, '#fcfcfc', 2, false);
-    miniMario(112, 124);
-    Font.drawCentered(ctx, '*  ' + pad(lives, 2), 136, 124, '#fcfcfc', 2, false);
+    Font.drawCentered(ctx, level.title, 128, 119, '#a3d6d4', 1, false);
+    miniMario(112, 146);
+    Font.drawCentered(ctx, '*  ' + pad(lives, 2), 136, 146, '#fcfcfc', 2, false);
+    Font.drawCentered(ctx, '3 STAR COINS = BONUS 1UP', 128, 180, '#fcd800', 1, false);
+    for (var s = 0; s < 3; s++) Scenery.star(ctx, 105 + s * 18, 201,
+      (bestMedals[levelIndex] & (1 << s)) ? '#ffe19a' : '#516273', 1);
   }
 
   function drawGameOver() {
@@ -1165,7 +1203,9 @@ var Game = (function () {
 
     drawBackground();
     drawTiles();
+    Scenery.terrain(ctx, level, cam, frame);
     drawCheckpoint();
+    drawMedals();
 
     // 特效在后，敌人在前
     var i, e;
@@ -1199,6 +1239,7 @@ var Game = (function () {
   /* ---------- 状态更新 ---------- */
   function startGame(startAt) {
     score = 0; coins = 0; lives = 3;
+    runMedals = [0, 0, 0, 0];
     player.power = 0; player.cometTimer = 0;
     Sound.setSpeed(1);
     loadLevel(startAt || 0, false, false);
@@ -1307,6 +1348,7 @@ var Game = (function () {
       return;
     }
     if (paused) return;
+    if (medalMessage > 0) medalMessage--;
 
     if (pipeTransition) {
       updatePipeTransition();
@@ -1317,7 +1359,7 @@ var Game = (function () {
     }
 
     if (clear) updateClear();
-    else { updatePlayer(); updateTimer(); }
+    else { updatePlayer(); collectMedals(); updateTimer(); }
 
     updateEntities();
     updateBumps();
@@ -1372,6 +1414,8 @@ var Game = (function () {
     get clear() { return clear; },
     get pipeTransition() { return pipeTransition; },
     get checkpointReached() { return checkpointReached; },
+    get medalMask() { return runMedals[levelIndex] || 0; },
+    get bestMedalMask() { return bestMedals[levelIndex] || 0; },
     setPaused: setPaused,
     toggleSound: toggleSound,
     get paused() { return paused; },

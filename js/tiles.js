@@ -4,8 +4,8 @@ var Tiles = (function () {
 
   var THEMES = {
     overworld: {
-      sky: '#5c94fc',
-      ground: '#c84c0c', groundLo: '#8c2800', groundHi: '#fc9838',
+      sky: '#78b7d0',
+      ground: '#99704e', groundLo: '#624d40', groundHi: '#bd9560',
       brick: '#c84c0c', brickLo: '#8c2800', brickHi: '#fc9838', mortar: '#000000',
       block: '#e39b18', blockLo: '#96590c', blockHi: '#fcd8a8',
       used: '#a04800', usedLo: '#6a2800', usedHi: '#c86428',
@@ -16,8 +16,8 @@ var Tiles = (function () {
     },
     underground: {
       sky: '#000000',
-      ground: '#0088f8', groundLo: '#003c9c', groundHi: '#80d0f8',
-      brick: '#0088f8', brickLo: '#003c9c', brickHi: '#80d0f8', mortar: '#000000',
+      ground: '#394a65', groundLo: '#222d43', groundHi: '#62748a',
+      brick: '#536780', brickLo: '#29374d', brickHi: '#8ba9b4', mortar: '#000000',
       block: '#e39b18', blockLo: '#96590c', blockHi: '#fcd8a8',
       used: '#0058a8', usedLo: '#002c6c', usedHi: '#3898e0',
       stone: '#8888a8', stoneLo: '#484868', stoneHi: '#d0d0e8',
@@ -27,7 +27,7 @@ var Tiles = (function () {
     },
     sky: {
       sky: '#78b8f8',
-      ground: '#f8b800', groundLo: '#a05000', groundHi: '#fce0a0',
+      ground: '#a18b7f', groundLo: '#6c6470', groundHi: '#d2bc9b',
       brick: '#f88800', brickLo: '#a03c00', brickHi: '#fcc888', mortar: '#301800',
       block: '#e39b18', blockLo: '#96590c', blockHi: '#fcd8a8',
       used: '#a04800', usedLo: '#6a2800', usedHi: '#c86428',
@@ -38,7 +38,7 @@ var Tiles = (function () {
     },
     castle: {
       sky: '#000000',
-      ground: '#787878', groundLo: '#383838', groundHi: '#b8b8b8',
+      ground: '#5a4d60', groundLo: '#322f42', groundHi: '#907384',
       brick: '#787878', brickLo: '#383838', brickHi: '#b8b8b8', mortar: '#181818',
       block: '#e39b18', blockLo: '#96590c', blockHi: '#fcd8a8',
       used: '#585858', usedLo: '#282828', usedHi: '#888888',
