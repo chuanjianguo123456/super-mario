@@ -13,88 +13,108 @@
 <link rel="apple-touch-icon" href="assets/app-icon-192.png">
 <title>超级马里奥</title>
 <style>
-  :root { color-scheme: dark; }
-  html, body {
-    margin: 0; padding: 0; min-height: 100%;
-    background: #0b0b12; overflow: hidden;
-    font-family: monospace;
-  }
-  #wrap {
-    width: 100%; min-height: 100vh;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 10px; box-sizing: border-box; padding: 10px;
-  }
-  .app-actions {
-    position: fixed; z-index: 2;
-    top: max(10px, env(safe-area-inset-top));
-    right: max(10px, env(safe-area-inset-right));
-    display: flex; gap: 6px;
-  }
-  .app-action {
-    width: 38px; height: 38px; padding: 0;
-    border: 1px solid #4b5268; border-radius: 6px;
-    background: #202536; color: #f8f5e8;
-    font: bold 20px monospace; line-height: 1;
-    box-shadow: inset 0 -3px 0 #111522;
-  }
-  .app-action:active { transform: translateY(2px); box-shadow: none; }
-  .app-action:focus-visible, .touch-button:focus-visible {
-    outline: 2px solid #fcd800; outline-offset: 2px;
-  }
-  canvas {
-    display: block; width: min(100%, 768px); height: auto;
-    max-height: calc(100vh - 116px);
-    aspect-ratio: 16 / 15;
-    image-rendering: pixelated;
-    image-rendering: -moz-crisp-edges;
-    image-rendering: crisp-edges;
-    box-shadow: 0 0 0 2px #000, 0 8px 40px rgba(0,0,0,.8);
-    touch-action: none;
-  }
-  .touch-controls {
-    display: flex; align-items: center; justify-content: space-between;
-    width: min(100%, 768px); gap: 12px; user-select: none;
-  }
-  .touch-group { display: flex; gap: 8px; }
-  .touch-button {
-    width: 54px; height: 42px; border: 1px solid #4b5268; border-radius: 6px;
-    background: #202536; color: #f8f5e8; font: bold 18px monospace;
-    box-shadow: inset 0 -3px 0 #111522; touch-action: none;
-  }
-  .touch-button:active, .touch-button.is-held { background: #d84a35; transform: translateY(2px); box-shadow: none; }
-  .touch-button.utility { width: 46px; font-size: 14px; }
-  @media (min-width: 700px) and (min-height: 760px) { .touch-controls { display: none; } }
-  @media (max-width: 420px) {
-    #wrap { justify-content: flex-start; padding: 7px; gap: 7px; }
-    canvas { max-height: calc(100vh - 76px); }
-    .app-actions { top: max(7px, env(safe-area-inset-top)); right: max(7px, env(safe-area-inset-right)); gap: 4px; }
-    .app-action { width: 34px; height: 34px; font-size: 18px; }
-    .touch-controls, .touch-group { gap: 6px; }
-    .touch-button { width: 42px; height: 38px; }
-    .touch-button.utility { width: 38px; }
-  }
+:root { color-scheme: dark; --night: #101523; --panel: #1c2940; --line: #52637b; --cream: #f4ead7; --gold: #f8c865; --red: #df6249; --mint: #83cbb6; }
+* { box-sizing: border-box; }
+html, body { margin:0; min-height:100%; background:var(--night); color:var(--cream); font-family:"Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+body { background-image: linear-gradient(90deg,rgba(131,203,182,.035) 1px,transparent 1px), linear-gradient(rgba(131,203,182,.035) 1px,transparent 1px); background-size:24px 24px; }
+#wrap { min-height:100vh; min-height:100svh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:max(10px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left)); }
+.topbar, .stage, .help { width:min(100%,768px); }
+.topbar { min-height:44px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.brand { display:flex; align-items:center; gap:9px; min-width:0; }
+.brand img { width:32px; height:32px; image-rendering:pixelated; flex:none; }
+.brand strong { display:block; white-space:nowrap; font-size:16px; font-weight:900; letter-spacing:.08em; line-height:1.2; }
+.brand small { display:block; color:var(--mint); font:10px/1.3 Consolas,monospace; letter-spacing:.08em; }
+.app-actions { display:flex; flex-wrap:nowrap; align-items:center; gap:6px; }
+button { cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.app-action, .touch-button { border:1px solid var(--line); border-bottom:3px solid #0a101b; border-radius:5px; background:var(--panel); color:var(--cream); font-family:inherit; font-weight:800; touch-action:none; user-select:none; -webkit-user-select:none; }
+.app-action { min-width:37px; height:38px; padding:0 9px; font-size:18px; line-height:1; }
+.app-action.text { font-size:12px; white-space:nowrap; }
+.app-action.primary { background:var(--red); color:white; border-color:#f79c70; border-bottom-color:#6b2b35; }
+.app-action:active, .touch-button:active, .is-held { transform:translateY(2px); border-bottom-width:1px; }
+.touch-button.is-held { background:var(--red); border-color:#f79c70; }
+button:focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
+[hidden] { display:none !important; }
+.stage { display:flex; flex-direction:column; align-items:center; gap:10px; }
+.screen-frame { width:min(100%, calc((100svh - 124px) * 16 / 15), 768px); padding:4px; background:#050b17; border:1px solid #697c91; box-shadow:0 0 0 3px #0c1527, 0 12px 38px rgba(0,0,0,.5); }
+#screen { display:block; width:100%; height:auto; aspect-ratio:16 / 15; image-rendering:pixelated; touch-action:none; }
+.touch-controls { display:none; align-items:center; justify-content:space-between; width:100%; gap:10px; }
+.touch-group { display:flex; gap:7px; align-items:center; }
+.touch-button { min-width:52px; height:54px; padding:0 9px; font-size:18px; }
+.touch-button.utility { min-width:44px; font-size:13px; }
+.touch-button.jump { color:#fff3d3; border-color:#d48f65; background:#9d4c43; }
+.help { margin:0; text-align:center; color:#aab8c9; font-size:11px; line-height:1.5; }
+.help span { margin:0 5px; display:inline-block; }
+kbd { display:inline-block; padding:1px 4px; border:1px solid #6b7280; border-radius:3px; color:var(--cream); font:11px Consolas,monospace; }
+@media (pointer:coarse), (max-width:700px) {
+ #wrap { justify-content:flex-start; }
+ .touch-controls { display:flex; }
+ .screen-frame { width:min(100%, calc((100svh - 190px) * 16 / 15), 768px); }
+ .help-keyboard { display:none !important; }
+}
+@media (max-width:440px) {
+ #wrap { gap:8px; }
+ .brand img { width:26px; height:26px; }
+ .brand strong { font-size:13px; }
+ .brand small { font-size:9px; }
+ .app-actions { gap:4px; }
+ .app-action { min-width:32px; height:34px; padding:0 6px; font-size:16px; }
+ .app-action.text { font-size:11px; }
+ .touch-group { gap:5px; }
+ .touch-button { min-width:44px; padding:0 6px; }
+ .touch-button.utility { min-width:36px; }
+ .help { font-size:10px; }
+}
+@media (max-width:370px) { .brand small { display:none; } .brand strong { font-size:12px; } .brand { gap:5px; } }
+@media (max-height:520px) and (pointer:coarse), (max-height:520px) and (max-width:700px) {
+ #wrap { display:flex; justify-content:center; gap:0; padding-top:4px; padding-bottom:4px; }
+ .topbar { position:absolute; top:max(4px,env(safe-area-inset-top)); right:max(5px,env(safe-area-inset-right)); width:auto; z-index:4; min-height:0; }
+ .brand, .help { display:none; }
+ .app-action { height:32px; }
+ .stage { width:100%; position:relative; gap:0; }
+ .screen-frame { width:min(100%, calc((100svh - 12px) * 16 / 15), 768px); }
+ .touch-controls { position:absolute; inset:0; width:100%; justify-content:space-between; align-items:flex-end; pointer-events:none; padding:0 0 max(5px,env(safe-area-inset-bottom)); }
+ .touch-group { pointer-events:auto; }
+ .touch-button { height:46px; min-width:44px; }
+ .touch-button.utility { min-width:38px; }
+}
+@media (max-height:520px) and (max-width:740px) {
+ .touch-button { min-width:36px; padding:0 4px; }
+ .touch-button.utility { min-width:32px; }
+ .touch-group { gap:4px; }
+}
+@media (prefers-reduced-motion:reduce) { .app-action, .touch-button { transition:none; } }
 </style>
 </head>
 <body>
 <div id="wrap">
-  <div class="app-actions" aria-label="应用工具">
-    <button id="sound-app" class="app-action" type="button" aria-label="关闭声音" title="关闭声音">♫</button>
-    <button id="fullscreen-app" class="app-action" type="button" aria-label="进入全屏" title="进入全屏">⛶</button>
-    <button id="install-app" class="app-action" type="button" hidden aria-label="安装应用" title="安装应用">⇩</button>
-  </div>
-  <canvas id="screen" width="768" height="720"></canvas>
-  <nav class="touch-controls" aria-label="触控操作">
-    <div class="touch-group">
-      <button class="touch-button" data-key="KeyA" aria-label="向左">◀</button>
-      <button class="touch-button utility" data-key="KeyS" aria-label="下水管">▼</button>
-      <button class="touch-button" data-key="KeyD" aria-label="向右">▶</button>
+  <header class="topbar">
+    <div class="brand"><img src="assets/app-icon.svg" alt=""><div><strong>超级马里奥</strong><small>PIXEL ADVENTURE · 4 WORLDS</small></div></div>
+    <div class="app-actions" aria-label="游戏控制">
+      <button class="app-action text primary" type="button" data-key="Enter" aria-label="开始新游戏" title="开始新游戏">开始</button>
+      <button class="app-action text" type="button" data-key="KeyC" aria-label="继续已解锁关卡" title="继续已解锁关卡" hidden>续关</button>
+      <button class="app-action text" type="button" data-key="KeyP" aria-label="暂停或继续游戏" title="暂停或继续游戏" hidden>暂停</button>
+      <button class="app-action text" type="button" data-key="KeyR" aria-label="重开当前关卡" title="重开当前关卡" hidden>重开</button>
+      <button id="sound-app" class="app-action" type="button" aria-label="关闭声音" title="关闭声音">♫</button>
+      <button id="fullscreen-app" class="app-action" type="button" aria-label="进入全屏" title="进入全屏">⛶</button>
+      <button id="install-app" class="app-action" type="button" hidden aria-label="安装应用" title="安装应用">⇩</button>
     </div>
-    <div class="touch-group">
-      <button class="touch-button utility" data-key="KeyP" aria-label="暂停">Ⅱ</button>
-      <button class="touch-button" data-key="Space" aria-label="跳跃">跳</button>
-      <button class="touch-button utility" data-key="KeyX" aria-label="奔跑或发射">跑</button>
-    </div>
-  </nav>
+  </header>
+  <main class="stage">
+    <div class="screen-frame"><canvas id="screen" width="768" height="720" aria-label="超级马里奥游戏画面">请使用支持 Canvas 的浏览器。</canvas></div>
+    <nav class="touch-controls" aria-label="触屏游戏操作">
+      <div class="touch-group">
+        <button class="touch-button" type="button" data-key="KeyA" aria-label="向左">◀</button>
+        <button class="touch-button utility" type="button" data-key="KeyS" aria-label="下水管">▼</button>
+        <button class="touch-button" type="button" data-key="KeyD" aria-label="向右">▶</button>
+      </div>
+      <div class="touch-group">
+        <button class="touch-button utility" type="button" data-key="KeyP" aria-label="暂停或继续">Ⅱ</button>
+        <button class="touch-button jump" type="button" data-key="Space" aria-label="跳跃或开始游戏">跳</button>
+        <button class="touch-button utility" type="button" data-key="KeyX" aria-label="奔跑或发射">跑</button>
+      </div>
+    </nav>
+  </main>
+  <p class="help"><span class="help-keyboard"><kbd>← →</kbd> 移动 · <kbd>空格</kbd> 跳跃 · <kbd>X</kbd> 奔跑/发射 · <kbd>P</kbd> 暂停 · <kbd>R</kbd> 重开</span><span>手柄：左摇杆移动 · A 跳跃 · B/X 奔跑 · Start 暂停</span></p>
 </div>
 
 <script src="js/font.js"></script>
@@ -110,7 +130,7 @@
 <script src="app.js"></script>
 <script>
   if (window.Input && Input.bindTouch) {
-    Input.bindTouch(document.querySelectorAll('.touch-button'));
+    Input.bindTouch(document.querySelectorAll('[data-key]'));
   }
 </script>
 </body>

@@ -1152,11 +1152,10 @@ var Game = (function () {
     Sprites.draw(ctx, coinSprite, 168, 176, false, null);
 
     if (Math.floor(frame / 20) % 2 === 0) {
-      var startText = worldsCleared > 0 ? 'ENTER-NEW RUN C-CONTINUE' : 'PRESS ENTER OR JUMP';
+      var startText = worldsCleared > 0 ? 'ENTER-NEW RUN  C-CONTINUE' : 'PRESS ENTER OR JUMP';
       Font.drawCentered(ctx, startText, 128, 148, '#fcfcfc', 1);
     }
-    Font.drawCentered(ctx, 'ARROWS-MOVE   Z-JUMP   X-RUN/FIRE', 128, 163, '#fcfcfc', 1);
-    Font.drawCentered(ctx, 'P-PAUSE   R-RESTART   M-SOUND   F3-DEBUG', 128, 173, '#fcfcfc', 1);
+    Font.drawCentered(ctx, '3 STAR COINS IN EACH WORLD', 128, 165, '#ffe19a', 1);
   }
 
   function drawLevelStart() {
@@ -1231,7 +1230,8 @@ var Game = (function () {
     if (paused) {
       dim(0.55);
       Font.drawCentered(ctx, 'PAUSE', 128, 104, '#fcfcfc', 3);
-      Font.drawCentered(ctx, 'P-RESUME   R-RESTART', 128, 136, '#fcfcfc', 1);
+      Font.drawCentered(ctx, 'P / START - RESUME', 128, 136, '#fcfcfc', 1);
+      Font.drawCentered(ctx, 'R - RESTART', 128, 151, '#fcfcfc', 1);
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }

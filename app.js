@@ -3,6 +3,10 @@
   var installButton = document.getElementById('install-app');
   var soundButton = document.getElementById('sound-app');
   var fullscreenButton = document.getElementById('fullscreen-app');
+  var startButton = document.querySelector('[data-key="Enter"]');
+  var continueButton = document.querySelector('[data-key="KeyC"]');
+  var pauseButton = document.querySelector('.app-actions [data-key="KeyP"]');
+  var resetButton = document.querySelector('.app-actions [data-key="KeyR"]');
   var deferredInstall = null;
   var isDesktop = !!(window.desktop && window.desktop.isDesktop);
   var desktopBridge = isDesktop ? window.desktop : null;
@@ -14,6 +18,19 @@
     soundButton.textContent = enabled ? '♫' : '—';
     soundButton.setAttribute('aria-label', enabled ? '关闭声音' : '打开声音');
     soundButton.title = enabled ? '关闭声音' : '打开声音';
+  }
+
+  function syncGameButtons() {
+    if (!window.Game) return;
+    var state = Game.state;
+    if (startButton) startButton.hidden = state !== 'title' && state !== 'gameover' && state !== 'win';
+    if (continueButton) continueButton.hidden = state !== 'title' || !Game.worldsCleared;
+    if (resetButton) resetButton.hidden = state !== 'playing' || !Game.paused;
+    if (pauseButton) {
+      pauseButton.hidden = state !== 'playing';
+      pauseButton.textContent = Game.paused ? '继续' : '暂停';
+      pauseButton.setAttribute('aria-label', Game.paused ? '继续游戏' : '暂停游戏');
+    }
   }
 
   function isFullscreen() {
@@ -98,6 +115,9 @@
     document.addEventListener('fullscreenchange', syncFullscreenButton);
     document.addEventListener('webkitfullscreenchange', syncFullscreenButton);
   }
+  window.addEventListener('blur', function () {
+    if (window.Game && Game.setPaused) Game.setPaused(true);
+  });
   document.addEventListener('visibilitychange', function () {
     if (document.hidden && window.Game && Game.setPaused) Game.setPaused(true);
   });
@@ -105,7 +125,9 @@
   window.addEventListener('load', function () {
     syncSoundButton();
     syncFullscreenButton();
+    syncGameButtons();
   });
+  window.setInterval(syncGameButtons, 60);
 
   if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
 

@@ -1,5 +1,5 @@
 /* Offline application shell for the installable game. */
-var CACHE_NAME = 'super-mario-v8';
+var CACHE_NAME = 'super-mario-v9';
 var APP_SHELL = [
   './',
   './index.html',

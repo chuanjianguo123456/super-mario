@@ -121,6 +121,8 @@ ok(typeof Entities.Comet === 'function', '缺少 Entities.Comet 实体接口');
 ok(typeof Sound.sfx.comet === 'function', '缺少 Sound.sfx.comet 音效接口');
 ok(Font.width('ABC', 1) === 17, '字体宽度计算异常: ' + Font.width('ABC', 1));
 ok(/data-key="KeyS"[^>]*aria-label="下水管"/.test(INDEX_HTML), '触控端缺少下水管按钮');
+ok(/data-key="Enter"/.test(INDEX_HTML) && /data-key="KeyC"/.test(INDEX_HTML), '界面缺少开始或续关按钮');
+ok(INDEX_HTML.includes("querySelectorAll('[data-key]')"), '新控制按钮未绑定输入');
 ok(/manifest\.webmanifest/.test(INDEX_HTML), '页面未链接 PWA 清单');
 ok(PWA_MANIFEST.display === 'standalone' && PWA_MANIFEST.orientation === 'landscape',
    'PWA 未声明独立横屏应用模式');
@@ -131,7 +133,7 @@ ok(['assets/app-icon-192.png', 'assets/app-icon-512.png', 'assets/app-icon.svg']
 ok(/serviceWorker\.register\('sw\.js'\)/.test(PWA_APP), '页面未注册离线服务工作线程');
 ok(['./index.html', './js/game.js', './assets/app-icon-192.png', './assets/app-icon-512.png'].every(p => PWA_WORKER.includes(p)),
    '离线缓存清单不完整');
-ok(/CACHE_NAME = 'super-mario-v8'/.test(PWA_WORKER), '离线缓存版本未升级到 v8');
+ok(/CACHE_NAME = 'super-mario-v9'/.test(PWA_WORKER), '离线缓存版本未升级到 v9');
 ok(/beforeinstallprompt/.test(PWA_APP) && /id="install-app"/.test(INDEX_HTML),
    'PWA 缺少原生安装入口');
 ok(/mario_sound/.test(GAME_SOURCE), '声音偏好未接入本地存储');
@@ -197,6 +199,77 @@ ok(appUsesDesktop && /(?:window\.)?desktop(?:Bridge)?\s*\.\s*toggleFullscreen\s*
    'app.js 必须调用 desktop.toggleFullscreen');
 ok(/requestFullscreen/.test(PWA_APP),
    'app.js 必须保留浏览器 requestFullscreen 回退');
+
+/* ---- 独立输入层：多键、多指、手柄断连与焦点恢复 ---- */
+section('输入设备');
+const inputListeners = {}, docListeners = {};
+const gamepadButtons = Array.from({ length: 17 }, () => ({ pressed: false }));
+const fakePad = { mapping: 'standard', connected: true, axes: [0, 0], buttons: gamepadButtons };
+let connectedPads = [fakePad];
+const inputSandbox = {
+  navigator: { getGamepads: () => connectedPads },
+  window: { addEventListener: (type, fn) => (inputListeners[type] ||= []).push(fn) },
+  document: { addEventListener: (type, fn) => (docListeners[type] ||= []).push(fn), hidden: false }
+};
+vm.createContext(inputSandbox);
+vm.runInContext(fs.readFileSync(path.join(DIR, 'js', 'input.js'), 'utf8'), inputSandbox);
+const deviceInput = inputSandbox.Input;
+function inputEvent(type, code, target) {
+  for (const fn of inputListeners[type] || []) fn({ code, repeat: false, target, preventDefault() {} });
+}
+let firstInputs = 0;
+deviceInput.setFirstInputHook(() => firstInputs++);
+inputEvent('keydown', 'ArrowLeft'); inputEvent('keydown', 'KeyA'); deviceInput.poll();
+ok(deviceInput.isDown('left') && deviceInput.justPressed('left'), '多个键映射同一方向未合并');
+inputEvent('keyup', 'ArrowLeft'); deviceInput.poll();
+ok(deviceInput.isDown('left') && !deviceInput.justPressed('left'), '松开其中一键不应停止移动');
+inputEvent('keyup', 'KeyA'); deviceInput.poll();
+ok(!deviceInput.isDown('left'), '释放所有方向键后仍在移动');
+inputEvent('keydown', 'Space'); inputEvent('keyup', 'Space'); deviceInput.poll();
+ok(deviceInput.justPressed('jump'), '两帧之间的短按被吞掉');
+deviceInput.poll(); ok(!deviceInput.justPressed('jump'), '短按被重复触发');
+function fakeTouchButton(code) {
+  const listeners = {}, classes = new Set();
+  return {
+    getAttribute: () => code,
+    addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
+    setPointerCapture() {},
+    classList: { add: x => classes.add(x), remove: x => classes.delete(x), contains: x => classes.has(x) },
+    emit(type, id) {
+      const e = { pointerId: id, button: 0, detail: type === 'click' ? 1 : undefined, preventDefault() {} };
+      for (const fn of listeners[type] || []) fn(e);
+    },
+    keyboardClick() {
+      for (const fn of listeners.click || []) fn({ detail: 0 });
+    }
+  };
+}
+const moveButton = fakeTouchButton('KeyD'), jumpButton = fakeTouchButton('Space');
+deviceInput.bindTouch([moveButton, jumpButton]);
+moveButton.emit('pointerdown', 1); moveButton.emit('pointerdown', 2);
+jumpButton.emit('pointerdown', 3); deviceInput.poll();
+ok(deviceInput.isDown('right') && deviceInput.isDown('jump'), '触屏不能边移动边跳跃');
+moveButton.emit('pointerup', 1); deviceInput.poll();
+ok(deviceInput.isDown('right') && deviceInput.isDown('jump') && moveButton.classList.contains('is-held'), '一指离开错误释放另一指');
+moveButton.emit('pointercancel', 2); jumpButton.emit('pointerup', 3); deviceInput.poll();
+ok(!deviceInput.isDown('right') && !deviceInput.isDown('jump'), '触屏取消后未释放按键');
+jumpButton.keyboardClick(); deviceInput.poll();
+ok(deviceInput.justPressed('jump'), '键盘点击触屏按钮未触发跳跃');
+deviceInput.poll();
+inputEvent('keydown', 'ArrowRight'); fakePad.axes[0] = 0.65; deviceInput.poll();
+inputEvent('keyup', 'ArrowRight'); deviceInput.poll();
+ok(deviceInput.isDown('right'), '键盘释放覆盖了仍在推动的手柄');
+fakePad.axes[0] = 0.1; gamepadButtons[0].pressed = true; gamepadButtons[1].pressed = true;
+gamepadButtons[9].pressed = true; deviceInput.poll();
+ok(!deviceInput.isDown('right') && deviceInput.isDown('jump') && deviceInput.isDown('run') &&
+   deviceInput.justPressed('pause') && deviceInput.justPressed('start'), '标准手柄键位或摇杆死区异常');
+connectedPads = []; deviceInput.poll();
+ok(!deviceInput.isDown('jump') && !deviceInput.isDown('run') && !deviceInput.isDown('pause'), '手柄断连后输入卡住');
+connectedPads = [fakePad]; gamepadButtons[9].pressed = false;
+for (const fn of inputListeners.blur || []) fn(); deviceInput.poll();
+ok(!deviceInput.isDown('jump'), '窗口失焦后仍按住手柄');
+for (const fn of inputListeners.focus || []) fn(); deviceInput.poll();
+ok(deviceInput.isDown('jump') && firstInputs === 1, '焦点恢复或首个输入钩子异常');
 
 /* ---- 2. 关卡几何 ---- */
 section('关卡几何');
